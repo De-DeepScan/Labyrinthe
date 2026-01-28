@@ -1,6 +1,6 @@
 import { Scene } from "phaser";
 import type { NeuralNetworkData } from "../types/interfaces";
-import { SynapseState } from "../types/interfaces";
+import { SynapseState, NeuronType } from "../types/interfaces";
 import { NeuralNetworkManager } from "../managers/NeuralNetworkManager";
 import { AIManager } from "../managers/AIManager";
 import { FirewallManager } from "../managers/FirewallManager";
@@ -144,8 +144,8 @@ export default class ProtectorGame extends Scene {
         // Create UI
         this.createUI();
 
-        // Setup synapse click handler
-        this.setupSynapseClickHandler();
+        // Setup neuron click handler for destruction
+        this.setupNeuronClickHandler();
     }
 
     /**
@@ -160,7 +160,7 @@ export default class ProtectorGame extends Scene {
         });
 
         // Instructions
-        this.add.text(20, 60, "Bloquez les synapses pour protéger l'Explorateur de l'IA", {
+        this.add.text(20, 60, "Détruisez les neurones pour bloquer le chemin de l'IA", {
             fontFamily: "Arial",
             fontSize: "16px",
             color: "#a0aec0",
@@ -275,69 +275,71 @@ export default class ProtectorGame extends Scene {
     }
 
     /**
-     * Setup synapse click handler for blocking
+     * Setup neuron click handler for destruction
      */
-    private setupSynapseClickHandler(): void {
+    private setupNeuronClickHandler(): void {
         EventBus.on("neuron-clicked", (neuronId: string) => {
-            this.tryBlockAdjacentSynapse(neuronId);
+            this.tryDestroyNeuron(neuronId);
         });
     }
 
     /**
-     * Try to block a synapse adjacent to clicked neuron
+     * Try to destroy a neuron
      */
-    private tryBlockAdjacentSynapse(neuronId: string): void {
+    private tryDestroyNeuron(neuronId: string): void {
         if (!this.networkData || !this.networkManager) return;
 
         const neuron = this.networkData.neurons[neuronId];
         if (!neuron) return;
 
-        // Find dormant synapse connected to this neuron
-        for (const synapse of Object.values(this.networkData.synapses)) {
-            if (
-                (synapse.fromNeuronId === neuronId || synapse.toNeuronId === neuronId) &&
-                synapse.state === SynapseState.DORMANT
-            ) {
-                this.blockSynapse(synapse.id);
-                return;
-            }
+        // Cannot destroy entry, core, or already destroyed neurons
+        if (neuron.type === NeuronType.ENTRY || neuron.type === NeuronType.CORE) {
+            this.showMessage("Impossible de détruire ce neurone !");
+            return;
         }
 
-        this.showMessage("Aucune synapse bloquable ici !");
-    }
+        if (neuron.isBlocked) {
+            this.showMessage("Ce neurone est déjà détruit !");
+            return;
+        }
 
-    /**
-     * Block a synapse
-     */
-    private blockSynapse(synapseId: string): void {
-        if (!this.networkData || !this.networkManager) return;
+        // Cannot destroy neurons on the explorer's activated path
+        if (this.explorerPath.includes(neuronId)) {
+            this.showMessage("L'Explorateur utilise ce neurone !");
+            return;
+        }
 
         // Check resources
-        if (!this.resourceManager.canBlock()) {
-            this.showMessage(`Il faut ${RESOURCE_CONFIG.BLOCK_COST} ressources pour bloquer !`);
+        if (!this.resourceManager.canDestroy()) {
+            this.showMessage(`Il faut ${RESOURCE_CONFIG.DESTROY_COST} ressources !`);
             return;
         }
 
         // Spend resources
-        this.resourceManager.tryBlock();
+        this.resourceManager.tryDestroy();
 
-        // Update synapse state
-        const synapse = this.networkData.synapses[synapseId];
-        if (synapse) {
-            synapse.state = SynapseState.BLOCKED;
-            this.networkManager.updateSynapseState(synapseId, SynapseState.BLOCKED);
+        // Mark neuron as destroyed
+        neuron.isBlocked = true;
+        this.networkManager.updateNeuronState(neuronId);
 
-            // Notify AI
-            this.aiManager?.addBlockedSynapse(synapseId);
-
-            // Notify explorer
-            this.networkService.sendSynapseBlocked(
-                synapseId,
-                this.resourceManager.getResources()
-            );
-
-            this.showMessage("Synapse bloquée !");
+        // Block all synapses connected to this neuron
+        for (const synapse of Object.values(this.networkData.synapses)) {
+            if (synapse.fromNeuronId === neuronId || synapse.toNeuronId === neuronId) {
+                synapse.state = SynapseState.BLOCKED;
+                this.networkManager.updateSynapseState(synapse.id, SynapseState.BLOCKED);
+            }
         }
+
+        // Notify AI to recalculate path
+        this.aiManager?.addDestroyedNeuron(neuronId);
+
+        // Notify explorer
+        this.networkService.sendNeuronDestroyed(
+            neuronId,
+            this.resourceManager.getResources()
+        );
+
+        this.showMessage("Neurone détruit !");
     }
 
     /**

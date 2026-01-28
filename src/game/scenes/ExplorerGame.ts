@@ -125,6 +125,9 @@ export default class ExplorerGame extends Scene {
 
         // Synapse blocked by protector
         EventBus.on("network-synapse-blocked", this.onSynapseBlocked, this);
+
+        // Neuron destroyed by protector
+        EventBus.on("network-neuron-destroyed", this.onNeuronDestroyed, this);
     }
 
     /**
@@ -310,6 +313,25 @@ export default class ExplorerGame extends Scene {
     }
 
     /**
+     * Handle neuron destroyed by protector
+     */
+    private onNeuronDestroyed({ neuronId }: { neuronId: string }): void {
+        const neuron = this.networkData.neurons[neuronId];
+        if (neuron) {
+            neuron.isBlocked = true;
+            this.networkManager.updateNeuronState(neuronId);
+
+            // Block all synapses connected to this neuron
+            for (const synapse of Object.values(this.networkData.synapses)) {
+                if (synapse.fromNeuronId === neuronId || synapse.toNeuronId === neuronId) {
+                    synapse.state = SynapseState.BLOCKED;
+                    this.networkManager.updateSynapseState(synapse.id, SynapseState.BLOCKED);
+                }
+            }
+        }
+    }
+
+    /**
      * Show a temporary message
      */
     private showMessage(text: string): void {
@@ -380,6 +402,7 @@ export default class ExplorerGame extends Scene {
         EventBus.off("neuron-clicked", this.onNeuronClicked, this);
         EventBus.off("network-ai-connected", this.onAICaught, this);
         EventBus.off("network-synapse-blocked", this.onSynapseBlocked, this);
+        EventBus.off("network-neuron-destroyed", this.onNeuronDestroyed, this);
 
         this.networkManager?.destroy();
         this.puzzleManager?.destroy();

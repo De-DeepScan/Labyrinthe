@@ -13,6 +13,7 @@ export class AIManager {
     private networkData: NeuralNetworkData;
     private state: AIState;
     private blockedSynapses: Set<string> = new Set();
+    private destroyedNeurons: Set<string> = new Set();
 
     private explorerPath: string[] = [];
     private isPaused: boolean = false;
@@ -136,6 +137,16 @@ export class AIManager {
     }
 
     /**
+     * Add a destroyed neuron
+     */
+    addDestroyedNeuron(neuronId: string): void {
+        this.destroyedNeurons.add(neuronId);
+
+        // Recalculate path
+        this.recalculatePath();
+    }
+
+    /**
      * Recalculate path to explorer
      */
     private recalculatePath(): void {
@@ -179,6 +190,11 @@ export class AIManager {
             // Expand to neighbors
             for (const neighborId of neuron.connections) {
                 if (visited.has(neighborId)) continue;
+
+                // Check if neighbor neuron is destroyed
+                if (this.destroyedNeurons.has(neighborId)) {
+                    continue;
+                }
 
                 // Check if synapse is blocked
                 const synapse = this.findSynapseBetween(id, neighborId);

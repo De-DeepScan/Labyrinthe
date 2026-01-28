@@ -92,6 +92,10 @@ export class NetworkManager {
                 EventBus.emit("network-synapse-blocked", message.data);
                 break;
 
+            case "neuron-destroyed":
+                EventBus.emit("network-neuron-destroyed", message.data);
+                break;
+
             case "ai-position":
                 EventBus.emit("network-ai-position", message.data);
                 break;
@@ -200,6 +204,13 @@ export class NetworkManager {
      */
     sendSynapseBlocked(synapseId: string, resourcesRemaining: number): void {
         this.send("synapse-blocked", { synapseId, resourcesRemaining });
+    }
+
+    /**
+     * Send neuron destroyed
+     */
+    sendNeuronDestroyed(neuronId: string, resourcesRemaining: number): void {
+        this.send("neuron-destroyed", { neuronId, resourcesRemaining });
     }
 
     /**

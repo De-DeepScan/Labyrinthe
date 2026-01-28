@@ -7,7 +7,7 @@ import { EventBus } from "../EventBus";
 export class ResourceManager {
     private current: number;
     private maximum: number;
-    private blockCost: number;
+    private destroyCost: number;
 
     // Callbacks
     private onChangeCallback?: (current: number, max: number) => void;
@@ -16,11 +16,11 @@ export class ResourceManager {
     constructor(
         initial: number = RESOURCE_CONFIG.INITIAL_RESOURCES,
         max: number = RESOURCE_CONFIG.MAX_RESOURCES,
-        blockCost: number = RESOURCE_CONFIG.BLOCK_COST
+        destroyCost: number = RESOURCE_CONFIG.DESTROY_COST
     ) {
         this.current = initial;
         this.maximum = max;
-        this.blockCost = blockCost;
+        this.destroyCost = destroyCost;
     }
 
     /**
@@ -38,10 +38,10 @@ export class ResourceManager {
     }
 
     /**
-     * Get block cost
+     * Get destroy cost
      */
-    getBlockCost(): number {
-        return this.blockCost;
+    getDestroyCost(): number {
+        return this.destroyCost;
     }
 
     /**
@@ -52,10 +52,10 @@ export class ResourceManager {
     }
 
     /**
-     * Check if can afford to block
+     * Check if can afford to destroy
      */
-    canBlock(): boolean {
-        return this.canAfford(this.blockCost);
+    canDestroy(): boolean {
+        return this.canAfford(this.destroyCost);
     }
 
     /**
@@ -97,11 +97,11 @@ export class ResourceManager {
     }
 
     /**
-     * Try to spend block cost
+     * Try to spend destroy cost
      * @returns true if successful, false if insufficient
      */
-    tryBlock(): boolean {
-        return this.spendResources(this.blockCost);
+    tryDestroy(): boolean {
+        return this.spendResources(this.destroyCost);
     }
 
     /**

@@ -63,7 +63,7 @@ export const NEURAL_NETWORK_CONFIG = {
 export const RESOURCE_CONFIG = {
     INITIAL_RESOURCES: 30,
     MAX_RESOURCES: 100,
-    BLOCK_COST: 25,
+    DESTROY_COST: 15, // Coût pour détruire un neurone
     FIREWALL_BASE_REWARD: 10,
     FIREWALL_ROUND_MULTIPLIER: 1,
 } as const;
