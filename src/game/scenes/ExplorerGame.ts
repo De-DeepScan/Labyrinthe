@@ -351,7 +351,7 @@ export default class ExplorerGame extends Scene {
                 }
             }
 
-            this.showMessage("L'IA a hacké un neurone !");
+            this.showMessage("L'IA a rétabli un neurone !");
         }
     }
 

@@ -397,7 +397,7 @@ export default class ProtectorGame extends Scene {
         // Notify explorer
         this.networkService.sendNeuronHacked(neuronId);
 
-        this.showMessage("L'IA a hacké un neurone !");
+        this.showMessage("L'IA a rétabli un neurone !");
     }
 
     /**

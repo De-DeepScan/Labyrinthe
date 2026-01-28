@@ -478,7 +478,7 @@ export class AIManager {
         this.hackingBar.setDepth(DEPTH.AI_ENTITY + 1);
 
         // Hacking text
-        this.hackingText = this.scene.add.text(x, y - 40, "HACKING...", {
+        this.hackingText = this.scene.add.text(x, y - 40, "RÉTABLISSEMENT...", {
             fontFamily: "Arial Black",
             fontSize: "12px",
             color: "#e53e3e",
