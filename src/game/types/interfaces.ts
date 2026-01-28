@@ -1,60 +1,196 @@
-// Maze data structure
-export interface MazeData {
-    grid: number[][];
-    explorerSpawn: GridPosition;
-    exitPosition: GridPosition;
-    doors: Door[];
-    levers: Lever[];
+// ============= NEURAL NETWORK CORE =============
+
+// Neuron types
+export const NeuronType = {
+    NORMAL: "normal",
+    ENTRY: "entry",
+    CORE: "core",
+    JUNCTION: "junction",
+} as const;
+export type NeuronType = (typeof NeuronType)[keyof typeof NeuronType];
+
+// Represents a single neuron node in the network
+export interface Neuron {
+    id: string;
+    x: number;
+    y: number;
+    type: NeuronType;
+    connections: string[]; // IDs of connected neurons
+    isActivated: boolean;
+    isBlocked: boolean;
+}
+
+// Synapse states
+export const SynapseState = {
+    DORMANT: "dormant",
+    SOLVING: "solving",
+    ACTIVE: "active",
+    FAILED: "failed",
+    BLOCKED: "blocked",
+    AI_PATH: "ai_path",
+} as const;
+export type SynapseState = (typeof SynapseState)[keyof typeof SynapseState];
+
+// Represents a connection between two neurons
+export interface Synapse {
+    id: string;
+    fromNeuronId: string;
+    toNeuronId: string;
+    state: SynapseState;
+    difficulty: number; // Puzzle difficulty 1-3
+}
+
+// The complete neural network structure
+export interface NeuralNetworkData {
+    neurons: Record<string, Neuron>;
+    synapses: Record<string, Synapse>;
+    entryNeuronId: string;
+    coreNeuronId: string;
     width: number;
     height: number;
 }
 
-// Grid position
+// ============= SIGNAL PROPAGATION PUZZLE =============
+
+// Logic gate types
+export const LogicGate = {
+    AND: "AND",
+    OR: "OR",
+    XOR: "XOR",
+} as const;
+export type LogicGate = (typeof LogicGate)[keyof typeof LogicGate];
+
+// Circle states
+export const CircleState = {
+    OFF: "off",
+    WRONG: "wrong",
+    CORRECT: "correct",
+} as const;
+export type CircleState = (typeof CircleState)[keyof typeof CircleState];
+
+export interface PuzzleCircle {
+    id: number;
+    state: CircleState;
+    targetState: 0 | 1;
+    x: number;
+    y: number;
+    connections: number[]; // IDs of connectable circles
+    gateType: LogicGate;
+}
+
+export interface PuzzleConnection {
+    from: number;
+    to: number;
+}
+
+export interface PuzzleState {
+    circles: PuzzleCircle[];
+    activeConnections: PuzzleConnection[];
+    solution: (0 | 1)[];
+    difficulty: number;
+    synapseId: string;
+    isComplete: boolean;
+}
+
+// ============= FIREWALL MINI-GAME =============
+
+// Firewall colors
+export const FirewallColor = {
+    RED: "red",
+    BLUE: "blue",
+    GREEN: "green",
+    YELLOW: "yellow",
+} as const;
+export type FirewallColor = (typeof FirewallColor)[keyof typeof FirewallColor];
+
+export interface FirewallSequence {
+    colors: FirewallColor[];
+    currentIndex: number;
+    playerSequence: FirewallColor[];
+    speed: number;
+    round: number;
+}
+
+export interface FirewallState {
+    isActive: boolean;
+    sequence: FirewallSequence;
+    resourceReward: number;
+}
+
+// ============= RESOURCE SYSTEM =============
+
+export interface ResourceState {
+    current: number;
+    maximum: number;
+    blockCost: number;
+}
+
+// ============= AI STATE =============
+
+export interface AIState {
+    currentNeuronId: string;
+    targetPath: string[];
+    speed: number;
+    baseSpeed: number;
+    speedMultiplier: number;
+    isConnected: boolean;
+    moveProgress: number;
+}
+
+// ============= PLAYER STATES =============
+
+export interface ExplorerState {
+    currentNeuronId: string;
+    activatedPath: string[];
+    isPuzzleSolving: boolean;
+    currentPuzzle: PuzzleState | null;
+}
+
+export interface ProtectorState {
+    resources: ResourceState;
+    blockedSynapses: string[];
+    isPlayingFirewall: boolean;
+    firewallState: FirewallState | null;
+}
+
+// ============= NETWORK MESSAGES =============
+
+export type PlayerRole = "explorer" | "protector" | null;
+
+export type NetworkMessageType =
+    | "player-connected"
+    | "player-connected-ack"
+    | "network-generated"
+    | "explorer-moved"
+    | "synapse-activated"
+    | "synapse-blocked"
+    | "ai-position"
+    | "ai-connected"
+    | "puzzle-started"
+    | "puzzle-completed"
+    | "puzzle-failed"
+    | "game-won"
+    | "game-lost"
+    | "game-restart";
+
+export interface NetworkMessage {
+    type: NetworkMessageType;
+    data: unknown;
+    from: PlayerRole;
+    timestamp: number;
+}
+
+// ============= LEGACY (kept for compatibility) =============
+
 export interface GridPosition {
     x: number;
     y: number;
 }
 
-// Door mechanism
-export interface Door {
-    id: number;
-    x: number;
-    y: number;
-    isOpen: boolean;
-    sprite?: Phaser.GameObjects.Rectangle;
-}
-
-// Lever mechanism
-export interface Lever {
-    id: number;
-    x: number;
-    y: number;
-    isActive: boolean;
-    linkedDoorIds: number[];
-    sprite?: Phaser.GameObjects.Rectangle;
-}
-
-// Player controls interface
 export interface PlayerControls {
     up: Phaser.Input.Keyboard.Key;
     down: Phaser.Input.Keyboard.Key;
     left: Phaser.Input.Keyboard.Key;
     right: Phaser.Input.Keyboard.Key;
     action?: Phaser.Input.Keyboard.Key;
-}
-
-// Player manager interface
-export interface IPlayerManager {
-    getGridPosition(): GridPosition;
-    getSprite(): Phaser.GameObjects.Rectangle | undefined;
-    update(): void;
-}
-
-// Map manager interface
-export interface IMapManager {
-    isWalkable(x: number, y: number): boolean;
-    isDoor(x: number, y: number): boolean;
-    isExit(x: number, y: number): boolean;
-    isLever(x: number, y: number): boolean;
-    getTileAt(x: number, y: number): number;
 }

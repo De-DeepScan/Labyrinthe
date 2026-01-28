@@ -1,13 +1,5 @@
-import type { MazeData, GridPosition } from "../types/interfaces";
+import type { NeuralNetworkData, PlayerRole, NetworkMessage, NetworkMessageType } from "../types/interfaces";
 import { EventBus } from "../EventBus";
-
-export type PlayerRole = "explorer" | "guide" | null;
-
-export interface NetworkMessage {
-    type: string;
-    data: unknown;
-    from: PlayerRole;
-}
 
 /**
  * Manages communication between browser tabs using BroadcastChannel
@@ -20,7 +12,7 @@ export class NetworkManager {
     private partnerConnected: boolean = false;
 
     private constructor() {
-        this.channel = new BroadcastChannel("labyrinthe-game");
+        this.channel = new BroadcastChannel("neural-network-game");
         this.setupListeners();
     }
 
@@ -37,7 +29,6 @@ export class NetworkManager {
     setRole(role: PlayerRole): void {
         this.role = role;
         this.isConnected = true;
-        // Announce connection
         this.send("player-connected", { role });
     }
 
@@ -75,7 +66,6 @@ export class NetworkManager {
             case "player-connected":
                 this.partnerConnected = true;
                 EventBus.emit("partner-connected", message.data);
-                // Reply to confirm connection
                 if (this.role) {
                     this.send("player-connected-ack", { role: this.role });
                 }
@@ -86,25 +76,48 @@ export class NetworkManager {
                 EventBus.emit("partner-connected", message.data);
                 break;
 
-            case "maze-generated":
-                EventBus.emit("network-maze-received", message.data as MazeData);
+            case "network-generated":
+                EventBus.emit("network-data-received", message.data as NeuralNetworkData);
                 break;
 
-            case "lever-activated":
-                EventBus.emit("network-lever-activated", message.data as GridPosition);
+            case "explorer-moved":
+                EventBus.emit("network-explorer-moved", message.data);
                 break;
 
-            case "door-state-changed":
-                EventBus.emit("network-door-changed", message.data);
+            case "synapse-activated":
+                EventBus.emit("network-synapse-activated", message.data);
                 break;
 
-            case "explorer-position":
-                // Guide receives explorer position (but won't display it)
-                EventBus.emit("network-explorer-position", message.data as GridPosition);
+            case "synapse-blocked":
+                EventBus.emit("network-synapse-blocked", message.data);
+                break;
+
+            case "ai-position":
+                EventBus.emit("network-ai-position", message.data);
+                break;
+
+            case "ai-connected":
+                EventBus.emit("network-ai-connected", message.data);
+                break;
+
+            case "puzzle-started":
+                EventBus.emit("network-puzzle-started", message.data);
+                break;
+
+            case "puzzle-completed":
+                EventBus.emit("network-puzzle-completed", message.data);
+                break;
+
+            case "puzzle-failed":
+                EventBus.emit("network-puzzle-failed", message.data);
                 break;
 
             case "game-won":
                 EventBus.emit("network-game-won", message.data);
+                break;
+
+            case "game-lost":
+                EventBus.emit("network-game-lost", message.data);
                 break;
 
             case "game-restart":
@@ -119,55 +132,111 @@ export class NetworkManager {
     /**
      * Send a message to the other tab
      */
-    send(type: string, data: unknown): void {
+    send(type: NetworkMessageType, data: unknown): void {
         const message: NetworkMessage = {
             type,
             data,
             from: this.role,
+            timestamp: Date.now(),
         };
         this.channel.postMessage(message);
     }
 
+    // ============= Explorer methods =============
+
     /**
-     * Send maze data to guide
+     * Send neural network data to protector
      */
-    sendMaze(mazeData: MazeData): void {
-        this.send("maze-generated", mazeData);
+    sendNetworkData(networkData: NeuralNetworkData): void {
+        this.send("network-generated", networkData);
     }
 
     /**
-     * Send lever activation from guide
+     * Send explorer position update
      */
-    sendLeverActivation(position: GridPosition): void {
-        this.send("lever-activated", position);
+    sendExplorerMoved(data: { neuronId: string; activatedPath: string[] }): void {
+        this.send("explorer-moved", data);
     }
 
     /**
-     * Send door state change
+     * Send synapse activation
      */
-    sendDoorStateChange(data: { x: number; y: number; isOpen: boolean }): void {
-        this.send("door-state-changed", data);
+    sendSynapseActivated(synapseId: string): void {
+        this.send("synapse-activated", { synapseId });
     }
 
     /**
-     * Send explorer position (optional, for debugging)
+     * Send puzzle started
      */
-    sendExplorerPosition(position: GridPosition): void {
-        this.send("explorer-position", position);
+    sendPuzzleStarted(synapseId: string): void {
+        this.send("puzzle-started", { synapseId });
     }
 
     /**
-     * Send game won event
+     * Send puzzle completed
+     */
+    sendPuzzleCompleted(synapseId: string): void {
+        this.send("puzzle-completed", { synapseId });
+    }
+
+    /**
+     * Send puzzle failed
+     */
+    sendPuzzleFailed(synapseId: string): void {
+        this.send("puzzle-failed", { synapseId });
+    }
+
+    /**
+     * Send game won
      */
     sendGameWon(): void {
         this.send("game-won", { winner: "explorer" });
     }
+
+    // ============= Protector methods =============
+
+    /**
+     * Send synapse blocked
+     */
+    sendSynapseBlocked(synapseId: string, resourcesRemaining: number): void {
+        this.send("synapse-blocked", { synapseId, resourcesRemaining });
+    }
+
+    /**
+     * Send AI position update
+     */
+    sendAIPosition(data: { neuronId: string; path: string[] }): void {
+        this.send("ai-position", data);
+    }
+
+    /**
+     * Send AI connected (caught explorer)
+     */
+    sendAIConnected(data: { neuronId: string; explorerPushedTo: string }): void {
+        this.send("ai-connected", data);
+    }
+
+    /**
+     * Send game lost
+     */
+    sendGameLost(): void {
+        this.send("game-lost", { winner: "ai" });
+    }
+
+    // ============= Common methods =============
 
     /**
      * Send game restart request
      */
     sendGameRestart(): void {
         this.send("game-restart", {});
+    }
+
+    /**
+     * Reset connection state
+     */
+    reset(): void {
+        this.partnerConnected = false;
     }
 
     /**

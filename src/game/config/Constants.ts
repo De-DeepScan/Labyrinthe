@@ -1,37 +1,45 @@
-// Tile type IDs
-export const TILE_IDS = {
-    FLOOR: 0,
-    WALL: 1,
-    DOOR: 2,
-    LEVER: 3,
-    EXIT: 4,
-    EXPLORER_SPAWN: 5,
-} as const;
-
 // Depth constants for rendering order
 export const DEPTH = {
-    FLOOR: 0,
-    WALL: 10,
-    DOOR: 20,
-    LEVER: 20,
-    EXIT: 15,
-    PLAYER: 100,
-    GUIDE_CURSOR: 200,
-    FOG: 500,
-    UI: 1000,
-} as const;
-
-// Movement directions
-export const DIRECTIONS = {
-    UP: { x: 0, y: -1 },
-    DOWN: { x: 0, y: 1 },
-    LEFT: { x: -1, y: 0 },
-    RIGHT: { x: 1, y: 0 },
+    BACKGROUND: 0,
+    SYNAPSE: 10,
+    SYNAPSE_ACTIVE: 15,
+    NEURON: 20,
+    AI_PATH: 25,
+    AI_ENTITY: 30,
+    EXPLORER: 50,
+    FOG: 100,
+    PUZZLE_BG: 200,
+    PUZZLE_ELEMENTS: 210,
+    FIREWALL_BG: 200,
+    FIREWALL_ELEMENTS: 210,
+    UI: 500,
+    POPUP: 600,
 } as const;
 
 // Animation durations (in ms)
 export const ANIMATION = {
-    PLAYER_MOVE: 120,
-    DOOR_TOGGLE: 200,
-    LEVER_TOGGLE: 150,
+    NEURON_PULSE: 300,
+    SYNAPSE_ACTIVATE: 400,
+    EXPLORER_MOVE: 300,
+    AI_MOVE: 200,
+    PUZZLE_TRANSITION: 200,
+    FIREWALL_FLASH: 400,
+    POPUP_FADE: 300,
+} as const;
+
+// Game states
+export const GAME_STATE = {
+    WAITING: "waiting",
+    PLAYING: "playing",
+    PUZZLE: "puzzle",
+    PAUSED: "paused",
+    VICTORY: "victory",
+    DEFEAT: "defeat",
+} as const;
+
+// Logic gate types
+export const LOGIC_GATES = {
+    AND: "AND",
+    OR: "OR",
+    XOR: "XOR",
 } as const;

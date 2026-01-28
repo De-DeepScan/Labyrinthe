@@ -2,11 +2,12 @@ import { Scene } from "phaser";
 import { GameConfig } from "../config/GameConfig";
 import { NetworkManager } from "../services/NetworkManager";
 import { EventBus } from "../EventBus";
+import type { PlayerRole } from "../types/interfaces";
 
 export default class RoleSelect extends Scene {
     private networkManager!: NetworkManager;
     private waitingText?: Phaser.GameObjects.Text;
-    private selectedRole: "explorer" | "guide" | null = null;
+    private selectedRole: PlayerRole = null;
 
     constructor() {
         super("RoleSelect");
@@ -19,9 +20,9 @@ export default class RoleSelect extends Scene {
 
         // Title
         this.add
-            .text(centerX, 80, "LABYRINTHE", {
+            .text(centerX, 80, "NEURAL INFILTRATION", {
                 fontFamily: "Arial Black",
-                fontSize: "56px",
+                fontSize: "48px",
                 color: "#ffffff",
                 stroke: "#1a1a2e",
                 strokeThickness: 8,
@@ -42,31 +43,31 @@ export default class RoleSelect extends Scene {
             centerX - 200,
             350,
             "EXPLORATEUR",
-            "#4a9eff",
+            "#4299e1",
             [
-                "Se déplace dans le labyrinthe",
-                "Vision limitée (brouillard)",
-                "Doit trouver la sortie",
+                "Navigue dans le réseau neuronal",
+                "Résout des puzzles pour avancer",
+                "Doit atteindre le core central",
                 "",
-                "Touches: Z Q S D",
+                "Clic pour interagir",
             ],
             "explorer"
         );
 
-        // Guide button (right)
+        // Protector button (right)
         this.createRoleButton(
             centerX + 200,
             350,
-            "GUIDE",
-            "#ffcc00",
+            "PROTECTEUR",
+            "#ed8936",
             [
-                "Voit toute la carte",
-                "Ne voit PAS l'explorateur",
-                "Active les leviers/portes",
+                "Voit tout le réseau + l'IA",
+                "Joue au Firewall pour les ressources",
+                "Bloque les chemins de l'IA",
                 "",
-                "Touches: Flèches + Entrée",
+                "Clic pour bloquer",
             ],
-            "guide"
+            "protector"
         );
 
         // Instructions
@@ -95,7 +96,7 @@ export default class RoleSelect extends Scene {
         title: string,
         color: string,
         descriptions: string[],
-        role: "explorer" | "guide"
+        role: "explorer" | "protector"
     ): void {
         // Container background
         const bg = this.add.rectangle(x, y, 320, 350, 0x2a2a3a);
@@ -150,7 +151,7 @@ export default class RoleSelect extends Scene {
         });
     }
 
-    private selectRole(role: "explorer" | "guide"): void {
+    private selectRole(role: "explorer" | "protector"): void {
         this.selectedRole = role;
         this.networkManager.setRole(role);
 
@@ -169,8 +170,8 @@ export default class RoleSelect extends Scene {
         );
         overlay.setDepth(100);
 
-        const roleText = role === "explorer" ? "EXPLORATEUR" : "GUIDE";
-        const color = role === "explorer" ? "#4a9eff" : "#ffcc00";
+        const roleText = role === "explorer" ? "EXPLORATEUR" : "PROTECTEUR";
+        const color = role === "explorer" ? "#4299e1" : "#ed8936";
 
         this.add
             .text(centerX, centerY - 50, `Vous êtes: ${roleText}`, {
@@ -224,7 +225,7 @@ export default class RoleSelect extends Scene {
             if (this.selectedRole === "explorer") {
                 this.scene.start("ExplorerGame");
             } else {
-                this.scene.start("GuideGame");
+                this.scene.start("ProtectorGame");
             }
         });
     }
