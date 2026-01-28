@@ -96,6 +96,10 @@ export class NetworkManager {
                 EventBus.emit("network-neuron-destroyed", message.data);
                 break;
 
+            case "neuron-hacked":
+                EventBus.emit("network-neuron-hacked", message.data);
+                break;
+
             case "ai-position":
                 EventBus.emit("network-ai-position", message.data);
                 break;
@@ -211,6 +215,13 @@ export class NetworkManager {
      */
     sendNeuronDestroyed(neuronId: string, resourcesRemaining: number): void {
         this.send("neuron-destroyed", { neuronId, resourcesRemaining });
+    }
+
+    /**
+     * Send neuron hacked (unblocked by AI)
+     */
+    sendNeuronHacked(neuronId: string): void {
+        this.send("neuron-hacked", { neuronId });
     }
 
     /**

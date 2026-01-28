@@ -165,6 +165,7 @@ export type NetworkMessageType =
     | "synapse-activated"
     | "synapse-blocked"
     | "neuron-destroyed"
+    | "neuron-hacked"
     | "ai-position"
     | "ai-connected"
     | "puzzle-started"

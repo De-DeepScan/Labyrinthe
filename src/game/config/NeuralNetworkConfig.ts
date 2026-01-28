@@ -50,6 +50,7 @@ export const NEURAL_NETWORK_CONFIG = {
     AI_BASE_SPEED: 0.2, // Neurons per second (slower)
     AI_SPEED_INCREASE: 0.003, // Speed increase per second (0.3%)
     AI_MAX_SPEED: 1.0, // Lower maximum speed
+    AI_HACK_TIME: 5000, // Time in ms to hack through a destroyed neuron
 
     // Animation
     ANIMATION: {

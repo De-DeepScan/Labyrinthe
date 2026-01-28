@@ -19,9 +19,17 @@ export class AIManager {
     private isPaused: boolean = false;
     private gameStartTime: number = 0;
 
+    // Hacking state (when AI is blocked by destroyed neurons)
+    private isHacking: boolean = false;
+    private hackingNeuronId: string | null = null;
+    private hackingProgress: number = 0;
+    private hackingDuration: number = NEURAL_NETWORK_CONFIG.AI_HACK_TIME;
+
     // Visual elements
     private aiSprite?: Phaser.GameObjects.Arc;
     private pathGraphics?: Phaser.GameObjects.Graphics;
+    private hackingBar?: Phaser.GameObjects.Graphics;
+    private hackingText?: Phaser.GameObjects.Text;
 
     // Offset for rendering (same as NeuralNetworkManager)
     private offsetX: number = 0;
@@ -30,6 +38,7 @@ export class AIManager {
     // Callbacks
     private onCatchExplorerCallback?: () => void;
     private onPositionChangedCallback?: (neuronId: string) => void;
+    private onNeuronHackedCallback?: (neuronId: string) => void;
 
     constructor(
         scene: Scene,
@@ -293,6 +302,21 @@ export class AIManager {
             NEURAL_NETWORK_CONFIG.AI_MAX_SPEED
         );
 
+        // If hacking, update hacking progress
+        if (this.isHacking) {
+            this.updateHacking(delta);
+            return;
+        }
+
+        // If no path and explorer exists, try to hack a neuron
+        if (this.state.targetPath.length <= 1 && this.explorerPath.length > 0) {
+            const neuronToHack = this.findNeuronToHack();
+            if (neuronToHack) {
+                this.startHacking(neuronToHack);
+                return;
+            }
+        }
+
         // Move along path
         if (this.state.targetPath.length > 1) {
             this.state.moveProgress += this.state.speed * (delta / 1000);
@@ -325,6 +349,230 @@ export class AIManager {
                 this.interpolateVisualPosition();
             }
         }
+    }
+
+    /**
+     * Find a destroyed neuron to hack that would give us a path to the explorer
+     */
+    private findNeuronToHack(): string | null {
+        if (this.destroyedNeurons.size === 0) return null;
+
+        const currentNeuron = this.networkData.neurons[this.state.currentNeuronId];
+        if (!currentNeuron) return null;
+
+        // Find destroyed neurons adjacent to current position
+        for (const neighborId of currentNeuron.connections) {
+            if (this.destroyedNeurons.has(neighborId)) {
+                // Check if hacking this neuron would give us a path
+                const testPath = this.findPathWithoutNeuronBlocked(
+                    this.state.currentNeuronId,
+                    this.explorerPath,
+                    neighborId
+                );
+                if (testPath.length > 0) {
+                    return neighborId;
+                }
+            }
+        }
+
+        // If no adjacent destroyed neurons, find the nearest one
+        let nearestDist = Infinity;
+        let nearestNeuronId: string | null = null;
+
+        for (const destroyedId of this.destroyedNeurons) {
+            const destroyedNeuron = this.networkData.neurons[destroyedId];
+            if (!destroyedNeuron) continue;
+
+            const dist = this.distance(currentNeuron, destroyedNeuron);
+            if (dist < nearestDist) {
+                // Check if this neuron is reachable (adjacent to a non-destroyed neuron we can reach)
+                for (const neighborId of destroyedNeuron.connections) {
+                    if (!this.destroyedNeurons.has(neighborId)) {
+                        const pathToNeighbor = this.findPathToTargets(
+                            this.state.currentNeuronId,
+                            [neighborId]
+                        );
+                        if (pathToNeighbor.length > 0) {
+                            nearestDist = dist;
+                            nearestNeuronId = destroyedId;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        return nearestNeuronId;
+    }
+
+    /**
+     * Find path assuming a specific neuron is not blocked
+     */
+    private findPathWithoutNeuronBlocked(fromId: string, targetIds: string[], unblockNeuronId: string): string[] {
+        const targetSet = new Set(targetIds);
+        const visited = new Set<string>();
+        const queue: { id: string; path: string[] }[] = [{ id: fromId, path: [fromId] }];
+
+        while (queue.length > 0) {
+            const { id, path } = queue.shift()!;
+
+            if (visited.has(id)) continue;
+            visited.add(id);
+
+            if (targetSet.has(id)) {
+                return path;
+            }
+
+            const neuron = this.networkData.neurons[id];
+            if (!neuron) continue;
+
+            for (const neighborId of neuron.connections) {
+                if (visited.has(neighborId)) continue;
+
+                // Skip destroyed neurons EXCEPT the one we're testing
+                if (this.destroyedNeurons.has(neighborId) && neighborId !== unblockNeuronId) {
+                    continue;
+                }
+
+                const synapse = this.findSynapseBetween(id, neighborId);
+                if (synapse && this.blockedSynapses.has(synapse.id)) {
+                    continue;
+                }
+
+                queue.push({ id: neighborId, path: [...path, neighborId] });
+            }
+        }
+
+        return [];
+    }
+
+    /**
+     * Start hacking a destroyed neuron
+     */
+    private startHacking(neuronId: string): void {
+        this.isHacking = true;
+        this.hackingNeuronId = neuronId;
+        this.hackingProgress = 0;
+
+        // Create hacking visual
+        this.createHackingVisual();
+
+        // Emit hacking started event
+        EventBus.emit("ai-hacking-started", { neuronId });
+    }
+
+    /**
+     * Create hacking progress visual
+     */
+    private createHackingVisual(): void {
+        if (!this.hackingNeuronId) return;
+
+        const neuron = this.networkData.neurons[this.hackingNeuronId];
+        if (!neuron) return;
+
+        const x = neuron.x + this.offsetX;
+        const y = neuron.y + this.offsetY;
+
+        // Hacking progress bar background
+        this.hackingBar = this.scene.add.graphics();
+        this.hackingBar.setDepth(DEPTH.AI_ENTITY + 1);
+
+        // Hacking text
+        this.hackingText = this.scene.add.text(x, y - 40, "HACKING...", {
+            fontFamily: "Arial Black",
+            fontSize: "12px",
+            color: "#e53e3e",
+        }).setOrigin(0.5);
+        this.hackingText.setDepth(DEPTH.AI_ENTITY + 1);
+
+        // Pulsing effect on target neuron
+        this.scene.tweens.add({
+            targets: this.hackingText,
+            alpha: { from: 1, to: 0.3 },
+            duration: 300,
+            yoyo: true,
+            repeat: -1,
+        });
+    }
+
+    /**
+     * Update hacking progress bar
+     */
+    private updateHackingVisual(): void {
+        if (!this.hackingBar || !this.hackingNeuronId) return;
+
+        const neuron = this.networkData.neurons[this.hackingNeuronId];
+        if (!neuron) return;
+
+        const x = neuron.x + this.offsetX;
+        const y = neuron.y + this.offsetY;
+
+        this.hackingBar.clear();
+
+        // Background bar
+        this.hackingBar.fillStyle(0x1a202c, 0.8);
+        this.hackingBar.fillRect(x - 30, y - 55, 60, 8);
+
+        // Progress bar
+        const progress = this.hackingProgress / this.hackingDuration;
+        this.hackingBar.fillStyle(0xe53e3e, 1);
+        this.hackingBar.fillRect(x - 30, y - 55, 60 * progress, 8);
+    }
+
+    /**
+     * Update hacking state
+     */
+    private updateHacking(delta: number): void {
+        this.hackingProgress += delta;
+        this.updateHackingVisual();
+
+        if (this.hackingProgress >= this.hackingDuration) {
+            this.completeHacking();
+        }
+    }
+
+    /**
+     * Complete hacking and unblock the neuron
+     */
+    private completeHacking(): void {
+        if (!this.hackingNeuronId) return;
+
+        const neuronId = this.hackingNeuronId;
+
+        // Remove from destroyed set
+        this.destroyedNeurons.delete(neuronId);
+
+        // Update the network data
+        const neuron = this.networkData.neurons[neuronId];
+        if (neuron) {
+            neuron.isBlocked = false;
+        }
+
+        // Clean up hacking visuals
+        this.cleanupHackingVisual();
+
+        // Reset hacking state
+        this.isHacking = false;
+        this.hackingNeuronId = null;
+        this.hackingProgress = 0;
+
+        // Emit event
+        EventBus.emit("ai-hacking-complete", { neuronId });
+        this.onNeuronHackedCallback?.(neuronId);
+
+        // Recalculate path
+        this.recalculatePath();
+    }
+
+    /**
+     * Clean up hacking visual elements
+     */
+    private cleanupHackingVisual(): void {
+        this.hackingBar?.destroy();
+        this.hackingBar = undefined;
+
+        this.hackingText?.destroy();
+        this.hackingText = undefined;
     }
 
     /**
@@ -504,11 +752,30 @@ export class AIManager {
         this.onPositionChangedCallback = callback;
     }
 
+    onNeuronHacked(callback: (neuronId: string) => void): void {
+        this.onNeuronHackedCallback = callback;
+    }
+
+    /**
+     * Check if AI is currently hacking
+     */
+    isCurrentlyHacking(): boolean {
+        return this.isHacking;
+    }
+
+    /**
+     * Get hacking progress (0-1)
+     */
+    getHackingProgress(): number {
+        return this.hackingProgress / this.hackingDuration;
+    }
+
     /**
      * Cleanup
      */
     destroy(): void {
         this.aiSprite?.destroy();
         this.pathGraphics?.destroy();
+        this.cleanupHackingVisual();
     }
 }

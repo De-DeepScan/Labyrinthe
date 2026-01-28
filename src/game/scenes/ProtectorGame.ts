@@ -137,6 +137,9 @@ export default class ProtectorGame extends Scene {
         this.aiManager.onCatchExplorer(() => {
             this.onAICaughtExplorer();
         });
+        this.aiManager.onNeuronHacked((neuronId) => {
+            this.onNeuronHacked(neuronId);
+        });
 
         // Render network
         this.networkManager.render();
@@ -368,6 +371,33 @@ export default class ProtectorGame extends Scene {
             synapse.state = SynapseState.ACTIVE;
             this.networkManager.updateSynapseState(data.synapseId, SynapseState.ACTIVE);
         }
+    }
+
+    /**
+     * Handle AI hacking a neuron (unblocking it)
+     */
+    private onNeuronHacked(neuronId: string): void {
+        if (!this.networkData || !this.networkManager) return;
+
+        // Update local state
+        const neuron = this.networkData.neurons[neuronId];
+        if (neuron) {
+            neuron.isBlocked = false;
+            this.networkManager.updateNeuronState(neuronId);
+
+            // Unblock synapses connected to this neuron
+            for (const synapse of Object.values(this.networkData.synapses)) {
+                if (synapse.fromNeuronId === neuronId || synapse.toNeuronId === neuronId) {
+                    synapse.state = SynapseState.DORMANT;
+                    this.networkManager.updateSynapseState(synapse.id, SynapseState.DORMANT);
+                }
+            }
+        }
+
+        // Notify explorer
+        this.networkService.sendNeuronHacked(neuronId);
+
+        this.showMessage("L'IA a hacké un neurone !");
     }
 
     /**

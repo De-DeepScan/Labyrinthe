@@ -128,6 +128,9 @@ export default class ExplorerGame extends Scene {
 
         // Neuron destroyed by protector
         EventBus.on("network-neuron-destroyed", this.onNeuronDestroyed, this);
+
+        // Neuron hacked (unblocked) by AI
+        EventBus.on("network-neuron-hacked", this.onNeuronHacked, this);
     }
 
     /**
@@ -332,6 +335,27 @@ export default class ExplorerGame extends Scene {
     }
 
     /**
+     * Handle neuron hacked (unblocked) by AI
+     */
+    private onNeuronHacked({ neuronId }: { neuronId: string }): void {
+        const neuron = this.networkData.neurons[neuronId];
+        if (neuron) {
+            neuron.isBlocked = false;
+            this.networkManager.updateNeuronState(neuronId);
+
+            // Unblock synapses connected to this neuron
+            for (const synapse of Object.values(this.networkData.synapses)) {
+                if (synapse.fromNeuronId === neuronId || synapse.toNeuronId === neuronId) {
+                    synapse.state = SynapseState.DORMANT;
+                    this.networkManager.updateSynapseState(synapse.id, SynapseState.DORMANT);
+                }
+            }
+
+            this.showMessage("L'IA a hacké un neurone !");
+        }
+    }
+
+    /**
      * Show a temporary message
      */
     private showMessage(text: string): void {
@@ -403,6 +427,7 @@ export default class ExplorerGame extends Scene {
         EventBus.off("network-ai-connected", this.onAICaught, this);
         EventBus.off("network-synapse-blocked", this.onSynapseBlocked, this);
         EventBus.off("network-neuron-destroyed", this.onNeuronDestroyed, this);
+        EventBus.off("network-neuron-hacked", this.onNeuronHacked, this);
 
         this.networkManager?.destroy();
         this.puzzleManager?.destroy();
