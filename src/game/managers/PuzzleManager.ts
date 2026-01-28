@@ -61,54 +61,66 @@ export class PuzzleManager {
     }
 
     /**
-     * Create a simple 5-circle layout
+     * Create a 7-circle layout with increased difficulty
      * Layout:
-     *      [0]
-     *     / | \
-     *   [1]-+-[2]
-     *     \ | /
-     *    [3]-[4]
+     *        [0]
+     *       /   \
+     *     [1]   [2]
+     *    / | \ / | \
+     *  [3] | X | [4]
+     *      |/ \|
+     *     [5] [6]
+     *
+     * Each circle needs 2+ connections to be correct
      */
     private createSimpleCircleLayout(difficulty: number): PuzzleCircle[] {
         // Connections based on difficulty
-        // Easy: all can connect to all
-        // Hard: limited connections
+        // Easy: more connection options
+        // Hard: fewer connection options, must think strategically
         const connectionMaps: Record<number, number[][]> = {
             1: [ // Easy - many connections
-                [1, 2],       // 0 connects to 1, 2
-                [0, 2, 3],    // 1 connects to 0, 2, 3
-                [0, 1, 4],    // 2 connects to 0, 1, 4
-                [1, 4],       // 3 connects to 1, 4
-                [2, 3],       // 4 connects to 2, 3
+                [1, 2],             // 0 connects to 1, 2
+                [0, 2, 3, 5],       // 1 connects to 0, 2, 3, 5
+                [0, 1, 4, 6],       // 2 connects to 0, 1, 4, 6
+                [1, 5],             // 3 connects to 1, 5
+                [2, 6],             // 4 connects to 2, 6
+                [1, 3, 6],          // 5 connects to 1, 3, 6
+                [2, 4, 5],          // 6 connects to 2, 4, 5
             ],
-            2: [ // Medium
-                [1, 2],       // 0
-                [0, 3],       // 1
-                [0, 4],       // 2
-                [1, 4],       // 3
-                [2, 3],       // 4
+            2: [ // Medium - balanced
+                [1, 2],             // 0
+                [0, 3, 5],          // 1
+                [0, 4, 6],          // 2
+                [1, 5],             // 3
+                [2, 6],             // 4
+                [1, 3, 6],          // 5
+                [2, 4, 5],          // 6
             ],
-            3: [ // Hard - fewer connections
-                [1],          // 0
-                [0, 2, 3],    // 1
-                [1, 4],       // 2
-                [1, 4],       // 3
-                [2, 3],       // 4
+            3: [ // Hard - limited options, must plan carefully
+                [1, 2],             // 0
+                [0, 5],             // 1
+                [0, 6],             // 2
+                [5],                // 3
+                [6],                // 4
+                [1, 3, 6],          // 5
+                [2, 4, 5],          // 6
             ],
         };
 
         const positions = [
-            { x: 0, y: -100 },    // 0 top
-            { x: -100, y: 0 },    // 1 left
-            { x: 100, y: 0 },     // 2 right
-            { x: -60, y: 100 },   // 3 bottom-left
-            { x: 60, y: 100 },    // 4 bottom-right
+            { x: 0, y: -120 },     // 0 top
+            { x: -80, y: -40 },    // 1 upper-left
+            { x: 80, y: -40 },     // 2 upper-right
+            { x: -130, y: 50 },    // 3 middle-left
+            { x: 130, y: 50 },     // 4 middle-right
+            { x: -50, y: 120 },    // 5 bottom-left
+            { x: 50, y: 120 },     // 6 bottom-right
         ];
 
         const connectionMap = connectionMaps[difficulty] || connectionMaps[1];
         const circles: PuzzleCircle[] = [];
 
-        for (let i = 0; i < 5; i++) {
+        for (let i = 0; i < 7; i++) {
             circles.push({
                 id: i,
                 state: CircleState.OFF,
@@ -116,7 +128,7 @@ export class PuzzleManager {
                 x: positions[i].x,
                 y: positions[i].y,
                 connections: connectionMap[i],
-                gateType: LogicGate.OR, // Simplified - just needs any connection
+                gateType: LogicGate.OR,
             });
         }
 
@@ -168,7 +180,7 @@ export class PuzzleManager {
         this.container.add(diffText);
 
         // Hint text
-        this.hintText = this.scene.add.text(0, -115, "Connectez tous les cercles entre eux !", {
+        this.hintText = this.scene.add.text(0, -115, "Chaque cercle doit avoir 2 connexions minimum !", {
             fontFamily: "Arial",
             fontSize: "14px",
             color: "#718096",
@@ -306,7 +318,7 @@ export class PuzzleManager {
             // Deselect
             this.highlightCircle(circleId, false);
             this.selectedCircle = null;
-            this.updateHint("Connectez tous les cercles entre eux !");
+            this.updateHint("Chaque cercle doit avoir 2 connexions minimum !");
         } else {
             // Try to connect
             const canConnect = this.currentPuzzle.circles[this.selectedCircle].connections.includes(circleId);
@@ -379,10 +391,10 @@ export class PuzzleManager {
             connectionCount.set(conn.to, (connectionCount.get(conn.to) || 0) + 1);
         }
 
-        // Update states - circle is CORRECT if it has at least one connection
+        // Update states - circle is CORRECT if it has at least 2 connections
         for (const circle of this.currentPuzzle.circles) {
             const count = connectionCount.get(circle.id) || 0;
-            circle.state = count > 0 ? CircleState.CORRECT : CircleState.OFF;
+            circle.state = count >= 2 ? CircleState.CORRECT : CircleState.OFF;
 
             const sprite = this.circleSprites.get(circle.id);
             if (sprite) {

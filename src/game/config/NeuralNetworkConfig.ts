@@ -47,9 +47,9 @@ export const NEURAL_NETWORK_CONFIG = {
     EXPLORER_VISION_RADIUS: 3, // Number of neurons visible around explorer
 
     // AI Behavior
-    AI_BASE_SPEED: 0.4, // Neurons per second
-    AI_SPEED_INCREASE: 0.01, // Speed increase per second (1%)
-    AI_MAX_SPEED: 2.0,
+    AI_BASE_SPEED: 0.2, // Neurons per second (slower)
+    AI_SPEED_INCREASE: 0.003, // Speed increase per second (0.3%)
+    AI_MAX_SPEED: 1.0, // Lower maximum speed
 
     // Animation
     ANIMATION: {
