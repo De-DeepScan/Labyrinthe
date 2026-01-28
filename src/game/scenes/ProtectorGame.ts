@@ -46,6 +46,9 @@ export default class ProtectorGame extends Scene {
         this.firewallManager = new FirewallManager(this);
         this.firewallManager.onComplete((reward) => {
             this.resourceManager.addResources(reward);
+            // Repousser l'IA à son point de départ
+            this.aiManager?.resetToSpawn();
+            this.showMessage("IA repoussée !");
         });
 
         // Create waiting UI
@@ -64,7 +67,7 @@ export default class ProtectorGame extends Scene {
         const centerX = GameConfig.SCREEN_WIDTH / 2;
         const centerY = GameConfig.SCREEN_HEIGHT / 2;
 
-        this.waitingText = this.add.text(centerX, centerY, "Waiting for Explorer...", {
+        this.waitingText = this.add.text(centerX, centerY, "En attente de l'Explorateur...", {
             fontFamily: "Arial",
             fontSize: "32px",
             color: "#ffffff",
@@ -150,14 +153,14 @@ export default class ProtectorGame extends Scene {
      */
     private createUI(): void {
         // Title
-        this.add.text(20, 20, "PROTECTOR", {
+        this.add.text(20, 20, "PROTECTEUR", {
             fontFamily: "Arial Black",
             fontSize: "24px",
             color: "#ed8936",
         });
 
         // Instructions
-        this.add.text(20, 60, "Block synapses to protect the Explorer from the AI", {
+        this.add.text(20, 60, "Bloquez les synapses pour protéger l'Explorateur de l'IA", {
             fontFamily: "Arial",
             fontSize: "16px",
             color: "#a0aec0",
@@ -181,7 +184,7 @@ export default class ProtectorGame extends Scene {
         this.add.rectangle(x + 100, y + 25, 200, 50, 0x2d3748).setStrokeStyle(2, 0x4a5568);
 
         // Label
-        this.add.text(x, y, "Resources", {
+        this.add.text(x, y, "Ressources", {
             fontFamily: "Arial",
             fontSize: "14px",
             color: "#a0aec0",
@@ -248,7 +251,7 @@ export default class ProtectorGame extends Scene {
         const bg = this.add.rectangle(0, 0, 180, 45, 0x4299e1);
         bg.setStrokeStyle(2, 0xffffff);
 
-        const text = this.add.text(0, 0, "FIREWALL GAME", {
+        const text = this.add.text(0, 0, "JEU FIREWALL", {
             fontFamily: "Arial Black",
             fontSize: "16px",
             color: "#ffffff",
@@ -300,7 +303,7 @@ export default class ProtectorGame extends Scene {
             }
         }
 
-        this.showMessage("No blockable synapse here!");
+        this.showMessage("Aucune synapse bloquable ici !");
     }
 
     /**
@@ -311,7 +314,7 @@ export default class ProtectorGame extends Scene {
 
         // Check resources
         if (!this.resourceManager.canBlock()) {
-            this.showMessage(`Need ${RESOURCE_CONFIG.BLOCK_COST} resources to block!`);
+            this.showMessage(`Il faut ${RESOURCE_CONFIG.BLOCK_COST} ressources pour bloquer !`);
             return;
         }
 
@@ -333,7 +336,7 @@ export default class ProtectorGame extends Scene {
                 this.resourceManager.getResources()
             );
 
-            this.showMessage("Synapse blocked!");
+            this.showMessage("Synapse bloquée !");
         }
     }
 
@@ -370,7 +373,7 @@ export default class ProtectorGame extends Scene {
      */
     private onAICaughtExplorer(): void {
         // Show notification
-        this.showPausePopup("AI CONNECTED!", "The Explorer has been pushed back!");
+        this.showPausePopup("IA CONNECTÉE !", "L'Explorateur a été repoussé !");
 
         // Notify explorer
         const currentNeuronId = this.aiManager?.getCurrentNeuronId() || "";

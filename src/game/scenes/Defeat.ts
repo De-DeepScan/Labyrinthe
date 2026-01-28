@@ -19,7 +19,7 @@ export default class Defeat extends Scene {
         this.createBackgroundEffect();
 
         // Title
-        this.add.text(centerX, centerY - 100, "INFILTRATION FAILED", {
+        this.add.text(centerX, centerY - 100, "INFILTRATION ÉCHOUÉE", {
             fontFamily: "Arial Black",
             fontSize: "56px",
             color: "#e53e3e",
@@ -28,14 +28,14 @@ export default class Defeat extends Scene {
         }).setOrigin(0.5);
 
         // Subtitle
-        this.add.text(centerX, centerY - 20, "The AI has compromised the network", {
+        this.add.text(centerX, centerY - 20, "L'IA a compromis le réseau", {
             fontFamily: "Arial",
             fontSize: "24px",
             color: "#fc8181",
         }).setOrigin(0.5);
 
         // Buttons
-        this.createButton(centerX - 120, centerY + 80, "RETRY", "#4299e1", () => {
+        this.createButton(centerX - 120, centerY + 80, "REJOUER", "#4299e1", () => {
             this.restartGame();
         });
 

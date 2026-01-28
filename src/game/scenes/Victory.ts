@@ -18,7 +18,7 @@ export default class Victory extends Scene {
 
         // Victory text
         this.add
-            .text(centerX, centerY - 100, "INFILTRATION COMPLETE!", {
+            .text(centerX, centerY - 100, "INFILTRATION RÉUSSIE !", {
                 fontFamily: "Arial Black",
                 fontSize: "56px",
                 color: "#48bb78",
@@ -29,7 +29,7 @@ export default class Victory extends Scene {
 
         // Subtitle
         this.add
-            .text(centerX, centerY, "The Explorer reached the Core!", {
+            .text(centerX, centerY, "L'Explorateur a atteint le Noyau !", {
                 fontFamily: "Arial",
                 fontSize: "28px",
                 color: "#ffffff",
@@ -37,7 +37,7 @@ export default class Victory extends Scene {
             .setOrigin(0.5);
 
         // Play again button
-        this.createButton(centerX - 120, centerY + 100, "RETRY", "#4299e1", () => {
+        this.createButton(centerX - 120, centerY + 100, "REJOUER", "#4299e1", () => {
             this.restartGame();
         });
 

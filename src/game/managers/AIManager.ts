@@ -410,6 +410,37 @@ export class AIManager {
     }
 
     /**
+     * Reset AI to spawn point (called when Firewall succeeds)
+     */
+    resetToSpawn(): void {
+        // Recreate initial state to get spawn position
+        const initialState = this.createInitialState();
+
+        this.state.currentNeuronId = initialState.currentNeuronId;
+        this.state.targetPath = [];
+        this.state.moveProgress = 0;
+        this.state.isConnected = false;
+
+        // Reset speed multiplier partially (keep some progress)
+        this.state.speedMultiplier = Math.max(1.0, this.state.speedMultiplier * 0.5);
+        this.state.speed = this.state.baseSpeed * this.state.speedMultiplier;
+
+        this.updateVisualPosition();
+        this.recalculatePath();
+
+        // Flash animation
+        if (this.aiSprite) {
+            this.scene.tweens.add({
+                targets: this.aiSprite,
+                alpha: { from: 0, to: 1 },
+                scale: { from: 0.5, to: 1 },
+                duration: 500,
+                ease: "Back.easeOut",
+            });
+        }
+    }
+
+    /**
      * Get current AI state
      */
     getState(): AIState {

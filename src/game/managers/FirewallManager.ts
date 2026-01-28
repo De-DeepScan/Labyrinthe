@@ -116,7 +116,7 @@ export class FirewallManager {
         this.container.add(title);
 
         // Round indicator
-        this.roundText = this.scene.add.text(0, -170, "Round: 1", {
+        this.roundText = this.scene.add.text(0, -170, "Manche : 1", {
             fontFamily: "Arial",
             fontSize: "20px",
             color: "#ffffff",
@@ -124,7 +124,7 @@ export class FirewallManager {
         this.container.add(this.roundText);
 
         // Status text
-        this.statusText = this.scene.add.text(0, -140, "Press START to begin", {
+        this.statusText = this.scene.add.text(0, -140, "Appuyez sur DÉMARRER", {
             fontFamily: "Arial",
             fontSize: "16px",
             color: "#a0aec0",
@@ -135,7 +135,7 @@ export class FirewallManager {
         this.createButtons();
 
         // Resource reward text
-        this.resourceText = this.scene.add.text(0, 170, `Reward: +${this.state?.resourceReward || 0}`, {
+        this.resourceText = this.scene.add.text(0, 170, `Récompense : +${this.state?.resourceReward || 0}`, {
             fontFamily: "Arial",
             fontSize: "18px",
             color: "#48bb78",
@@ -225,7 +225,7 @@ export class FirewallManager {
 
         const bg = this.scene.add.rectangle(0, 0, 150, 45, 0x48bb78);
         bg.setStrokeStyle(2, 0xffffff);
-        const text = this.scene.add.text(0, 0, "START", {
+        const text = this.scene.add.text(0, 0, "DÉMARRER", {
             fontFamily: "Arial Black",
             fontSize: "20px",
             color: "#ffffff",
@@ -276,7 +276,7 @@ export class FirewallManager {
         this.currentSequenceIndex = 0;
 
         if (this.statusText) {
-            this.statusText.setText("Watch the sequence...");
+            this.statusText.setText("Observez la séquence...");
         }
 
         // Hide start button
@@ -305,7 +305,7 @@ export class FirewallManager {
             this.state.sequence.playerSequence = [];
 
             if (this.statusText) {
-                this.statusText.setText("Your turn! Repeat the sequence");
+                this.statusText.setText("À vous ! Répétez la séquence");
             }
             return;
         }
@@ -381,7 +381,7 @@ export class FirewallManager {
         const reward = this.calculateReward(round);
 
         if (this.statusText) {
-            this.statusText.setText(`Round ${round} complete! +${reward}`);
+            this.statusText.setText(`Manche ${round} réussie ! +${reward}`);
             this.statusText.setColor("#48bb78");
         }
 
@@ -398,13 +398,13 @@ export class FirewallManager {
             this.state.resourceReward = this.calculateReward(nextRound);
 
             if (this.roundText) {
-                this.roundText.setText(`Round: ${nextRound}`);
+                this.roundText.setText(`Manche : ${nextRound}`);
             }
             if (this.resourceText) {
-                this.resourceText.setText(`Reward: +${this.state.resourceReward}`);
+                this.resourceText.setText(`Récompense : +${this.state.resourceReward}`);
             }
             if (this.statusText) {
-                this.statusText.setText("Press START for next round");
+                this.statusText.setText("Appuyez sur DÉMARRER pour continuer");
                 this.statusText.setColor("#a0aec0");
             }
             if (this.startButton) {
@@ -424,7 +424,7 @@ export class FirewallManager {
         this.phase = "fail";
 
         if (this.statusText) {
-            this.statusText.setText("Wrong! Try again from Round 1");
+            this.statusText.setText("Erreur ! Recommencez à la manche 1");
             this.statusText.setColor("#e53e3e");
         }
 
@@ -451,13 +451,13 @@ export class FirewallManager {
             this.state.resourceReward = RESOURCE_CONFIG.FIREWALL_BASE_REWARD;
 
             if (this.roundText) {
-                this.roundText.setText("Round: 1");
+                this.roundText.setText("Manche : 1");
             }
             if (this.resourceText) {
-                this.resourceText.setText(`Reward: +${this.state.resourceReward}`);
+                this.resourceText.setText(`Récompense : +${this.state.resourceReward}`);
             }
             if (this.statusText) {
-                this.statusText.setText("Press START to try again");
+                this.statusText.setText("Appuyez sur DÉMARRER pour réessayer");
                 this.statusText.setColor("#a0aec0");
             }
             if (this.startButton) {

@@ -74,7 +74,7 @@ export default class ExplorerGame extends Scene {
      */
     private createUI(): void {
         // Status text
-        this.add.text(20, 20, "EXPLORER", {
+        this.add.text(20, 20, "EXPLORATEUR", {
             fontFamily: "Arial Black",
             fontSize: "24px",
             color: "#4299e1",
@@ -84,7 +84,7 @@ export default class ExplorerGame extends Scene {
         this.add.text(
             20,
             60,
-            "Click on adjacent neurons to create connections",
+            "Cliquez sur les neurones adjacents pour créer des connexions",
             {
                 fontFamily: "Arial",
                 fontSize: "16px",
@@ -93,7 +93,7 @@ export default class ExplorerGame extends Scene {
         );
 
         // Objective indicator
-        this.add.text(20, GameConfig.SCREEN_HEIGHT - 40, "Objective: Reach the CORE (orange)", {
+        this.add.text(20, GameConfig.SCREEN_HEIGHT - 40, "Objectif : Atteindre le CORE (orange)", {
             fontFamily: "Arial",
             fontSize: "14px",
             color: "#ed8936",
@@ -140,7 +140,7 @@ export default class ExplorerGame extends Scene {
 
         // Check if it's an adjacent neuron
         if (!currentNeuron.connections.includes(neuronId)) {
-            this.showMessage("Not connected to this neuron!");
+            this.showMessage("Ce neurone n'est pas connecté !");
             return;
         }
 
@@ -153,13 +153,13 @@ export default class ExplorerGame extends Scene {
         // Find the synapse between current and target
         const synapse = this.findSynapse(this.currentNeuronId, neuronId);
         if (!synapse) {
-            this.showMessage("No connection found!");
+            this.showMessage("Aucune connexion trouvée !");
             return;
         }
 
         // Check if synapse is blocked
         if (synapse.state === SynapseState.BLOCKED) {
-            this.showMessage("This connection is blocked!");
+            this.showMessage("Cette connexion est bloquée !");
             return;
         }
 
@@ -274,7 +274,7 @@ export default class ExplorerGame extends Scene {
      */
     private onAICaught(_data: { neuronId: string; explorerPushedTo: string }): void {
         // Show notification
-        this.showPausePopup("AI DETECTED!", "The AI connected to your network!");
+        this.showPausePopup("IA DÉTECTÉE !", "L'IA s'est connectée à votre réseau !");
 
         // Move explorer back
         this.time.delayedCall(2000, () => {
@@ -295,7 +295,7 @@ export default class ExplorerGame extends Scene {
         // Move to previous position
         this.moveToNeuron(newPosition);
 
-        this.showMessage("Pushed back! Keep going!");
+        this.showMessage("Repoussé ! Continuez !");
     }
 
     /**
