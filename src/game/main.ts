@@ -3,50 +3,10 @@ import { GameConfig } from "./config/GameConfig";
 import Boot from "./scenes/Boot";
 import Preloader from "./scenes/Preloader";
 import RoleSelect from "./scenes/RoleSelect";
+import ExplorerGame from "./scenes/ExplorerGame";
+import ProtectorGame from "./scenes/ProtectorGame";
 import Victory from "./scenes/Victory";
-
-// Placeholder scenes - will be replaced in Phase 9-10
-class ExplorerGame extends Phaser.Scene {
-    constructor() {
-        super("ExplorerGame");
-    }
-    create() {
-        this.add
-            .text(640, 360, "Explorer Game - Coming Soon", {
-                fontSize: "32px",
-                color: "#ffffff",
-            })
-            .setOrigin(0.5);
-    }
-}
-
-class ProtectorGame extends Phaser.Scene {
-    constructor() {
-        super("ProtectorGame");
-    }
-    create() {
-        this.add
-            .text(640, 360, "Protector Game - Coming Soon", {
-                fontSize: "32px",
-                color: "#ffffff",
-            })
-            .setOrigin(0.5);
-    }
-}
-
-class Defeat extends Phaser.Scene {
-    constructor() {
-        super("Defeat");
-    }
-    create() {
-        this.add
-            .text(640, 360, "DEFEAT", {
-                fontSize: "48px",
-                color: "#e53e3e",
-            })
-            .setOrigin(0.5);
-    }
-}
+import Defeat from "./scenes/Defeat";
 
 const config: Phaser.Types.Core.GameConfig = {
     type: AUTO,

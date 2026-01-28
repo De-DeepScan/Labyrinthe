@@ -18,10 +18,10 @@ export default class Victory extends Scene {
 
         // Victory text
         this.add
-            .text(centerX, centerY - 100, "VICTOIRE!", {
+            .text(centerX, centerY - 100, "INFILTRATION COMPLETE!", {
                 fontFamily: "Arial Black",
-                fontSize: "72px",
-                color: "#00ff88",
+                fontSize: "56px",
+                color: "#48bb78",
                 stroke: "#1a1a2e",
                 strokeThickness: 8,
             })
@@ -29,7 +29,7 @@ export default class Victory extends Scene {
 
         // Subtitle
         this.add
-            .text(centerX, centerY, "L'explorateur a trouvé la sortie!", {
+            .text(centerX, centerY, "The Explorer reached the Core!", {
                 fontFamily: "Arial",
                 fontSize: "28px",
                 color: "#ffffff",
@@ -37,23 +37,20 @@ export default class Victory extends Scene {
             .setOrigin(0.5);
 
         // Play again button
-        this.createButton(centerX, centerY + 100, "REJOUER", () => {
-            this.networkManager.sendGameRestart();
-            const role = this.networkManager.getRole();
-            if (role === "explorer") {
-                this.scene.start("ExplorerGame");
-            } else {
-                this.scene.start("GuideGame");
-            }
+        this.createButton(centerX - 120, centerY + 100, "RETRY", "#4299e1", () => {
+            this.restartGame();
         });
 
         // Menu button
-        this.createButton(centerX, centerY + 180, "CHANGER DE ROLE", () => {
-            this.scene.start("RoleSelect");
+        this.createButton(centerX + 120, centerY + 100, "MENU", "#718096", () => {
+            this.goToMenu();
         });
 
         // Celebration particles
         this.createParticles();
+
+        // Listen for partner restart
+        EventBus.on("network-game-restart", this.restartGame, this);
 
         EventBus.emit("current-scene-ready", this);
     }
@@ -62,15 +59,16 @@ export default class Victory extends Scene {
         x: number,
         y: number,
         text: string,
+        color: string,
         onClick: () => void
     ): void {
-        const buttonBg = this.add.rectangle(x, y, 250, 50, 0x4a9eff);
-        buttonBg.setStrokeStyle(2, 0xffffff);
+        const buttonBg = this.add.rectangle(x, y, 180, 50, parseInt(color.replace("#", ""), 16));
+        buttonBg.setStrokeStyle(3, 0xffffff);
 
-        this.add
+        const buttonText = this.add
             .text(x, y, text, {
                 fontFamily: "Arial Black",
-                fontSize: "22px",
+                fontSize: "20px",
                 color: "#ffffff",
             })
             .setOrigin(0.5);
@@ -78,20 +76,31 @@ export default class Victory extends Scene {
         buttonBg.setInteractive({ useHandCursor: true });
 
         buttonBg.on("pointerover", () => {
-            buttonBg.setFillStyle(0x6ab8ff);
+            buttonBg.setScale(1.05);
+            buttonText.setScale(1.05);
         });
 
         buttonBg.on("pointerout", () => {
-            buttonBg.setFillStyle(0x4a9eff);
+            buttonBg.setScale(1);
+            buttonText.setScale(1);
         });
 
-        buttonBg.on("pointerdown", () => {
-            onClick();
-        });
+        buttonBg.on("pointerdown", onClick);
+    }
+
+    private restartGame(): void {
+        this.networkManager.sendGameRestart();
+        this.networkManager.reset();
+        this.scene.start("RoleSelect");
+    }
+
+    private goToMenu(): void {
+        this.networkManager.reset();
+        this.scene.start("RoleSelect");
     }
 
     private createParticles(): void {
-        const colors = [0x00ff88, 0x4a9eff, 0xffcc00, 0xff6b6b];
+        const colors = [0x48bb78, 0x4299e1, 0xed8936, 0xecc94b];
 
         for (let i = 0; i < 50; i++) {
             const x = Phaser.Math.Between(0, GameConfig.SCREEN_WIDTH);
@@ -116,5 +125,9 @@ export default class Victory extends Scene {
                 },
             });
         }
+    }
+
+    shutdown(): void {
+        EventBus.off("network-game-restart", this.restartGame, this);
     }
 }
