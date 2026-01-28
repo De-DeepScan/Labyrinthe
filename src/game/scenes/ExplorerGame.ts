@@ -50,11 +50,14 @@ export default class ExplorerGame extends Scene {
         });
         this.networkManager.render();
 
+        // Setup camera to follow explorer
+        this.setupCamera();
+
         // Create puzzle manager
         this.puzzleManager = new PuzzleManager(this);
         this.setupPuzzleCallbacks();
 
-        // Create UI
+        // Create UI (fixed to camera)
         this.createUI();
 
         // Setup event listeners
@@ -70,18 +73,46 @@ export default class ExplorerGame extends Scene {
     }
 
     /**
-     * Create UI elements
+     * Setup camera to follow explorer
+     */
+    private setupCamera(): void {
+        const explorerContainer = this.networkManager.getExplorerContainer();
+        if (!explorerContainer) return;
+
+        // Get world bounds from network
+        const bounds = this.networkManager.getWorldBounds();
+        const worldWidth = bounds.maxX - bounds.minX;
+        const worldHeight = bounds.maxY - bounds.minY;
+
+        // Set camera bounds
+        this.cameras.main.setBounds(
+            bounds.minX,
+            bounds.minY,
+            worldWidth,
+            worldHeight
+        );
+
+        // Follow the explorer with smooth lerp
+        this.cameras.main.startFollow(explorerContainer, true, 0.1, 0.1);
+
+        // Zoom slightly for better view
+        this.cameras.main.setZoom(1.2);
+    }
+
+    /**
+     * Create UI elements (fixed to camera)
      */
     private createUI(): void {
         // Status text
-        this.add.text(20, 20, "EXPLORATEUR", {
+        const title = this.add.text(20, 20, "EXPLORATEUR", {
             fontFamily: "Arial Black",
             fontSize: "24px",
             color: "#4299e1",
         });
+        title.setScrollFactor(0);
 
         // Instructions
-        this.add.text(
+        const instructions = this.add.text(
             20,
             60,
             "Cliquez sur les neurones adjacents pour créer des connexions",
@@ -91,13 +122,15 @@ export default class ExplorerGame extends Scene {
                 color: "#a0aec0",
             }
         );
+        instructions.setScrollFactor(0);
 
         // Objective indicator
-        this.add.text(20, GameConfig.SCREEN_HEIGHT - 40, "Objectif : Atteindre le CORE (orange)", {
+        const objective = this.add.text(20, GameConfig.SCREEN_HEIGHT - 40, "Objectif : Atteindre le CORE (orange)", {
             fontFamily: "Arial",
             fontSize: "14px",
             color: "#ed8936",
         });
+        objective.setScrollFactor(0);
     }
 
     /**
@@ -356,7 +389,7 @@ export default class ExplorerGame extends Scene {
     }
 
     /**
-     * Show a temporary message
+     * Show a temporary message (fixed to camera)
      */
     private showMessage(text: string): void {
         const msg = this.add.text(
@@ -371,24 +404,27 @@ export default class ExplorerGame extends Scene {
                 padding: { x: 20, y: 10 },
             }
         ).setOrigin(0.5);
+        msg.setScrollFactor(0);
 
+        const startY = msg.y;
         this.tweens.add({
             targets: msg,
             alpha: 0,
-            y: msg.y - 50,
+            y: startY - 50,
             duration: 2000,
             onComplete: () => msg.destroy(),
         });
     }
 
     /**
-     * Show pause popup
+     * Show pause popup (fixed to camera)
      */
     private showPausePopup(title: string, message: string): void {
         const centerX = GameConfig.SCREEN_WIDTH / 2;
         const centerY = GameConfig.SCREEN_HEIGHT / 2;
 
         const container = this.add.container(centerX, centerY);
+        container.setScrollFactor(0);
 
         const bg = this.add.rectangle(0, 0, 400, 200, 0x000000, 0.9);
         bg.setStrokeStyle(3, 0xe53e3e);

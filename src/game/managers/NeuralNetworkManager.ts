@@ -869,6 +869,37 @@ export class NeuralNetworkManager {
     }
 
     /**
+     * Get the explorer container for camera following
+     */
+    getExplorerContainer(): Phaser.GameObjects.Container | undefined {
+        return this.explorerSprite?.container;
+    }
+
+    /**
+     * Get the world bounds for the isometric network
+     */
+    getWorldBounds(): { minX: number; minY: number; maxX: number; maxY: number } {
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+
+        for (const neuron of Object.values(this.networkData.neurons)) {
+            const isoPos = this.toIsometric(neuron.x, neuron.y);
+            minX = Math.min(minX, isoPos.x);
+            minY = Math.min(minY, isoPos.y);
+            maxX = Math.max(maxX, isoPos.x);
+            maxY = Math.max(maxY, isoPos.y);
+        }
+
+        // Add padding
+        const padding = 150;
+        return {
+            minX: minX - padding,
+            minY: minY - padding,
+            maxX: maxX + padding,
+            maxY: maxY + padding,
+        };
+    }
+
+    /**
      * Check if a neuron is visible (for fog of war)
      */
     isNeuronVisible(neuronId: string): boolean {

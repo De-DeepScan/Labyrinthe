@@ -113,6 +113,15 @@ export default class ProtectorGame extends Scene {
         this.initializeGame();
     }
 
+    // Camera controls
+    private cursors?: Phaser.Types.Input.Keyboard.CursorKeys;
+    private wasdKeys?: { W: Phaser.Input.Keyboard.Key; A: Phaser.Input.Keyboard.Key; S: Phaser.Input.Keyboard.Key; D: Phaser.Input.Keyboard.Key };
+    private isDragging: boolean = false;
+    private dragStartX: number = 0;
+    private dragStartY: number = 0;
+    private cameraStartX: number = 0;
+    private cameraStartY: number = 0;
+
     /**
      * Initialize the game after receiving network data
      */
@@ -144,7 +153,10 @@ export default class ProtectorGame extends Scene {
         // Render network
         this.networkManager.render();
 
-        // Create UI
+        // Setup camera controls
+        this.setupCameraControls();
+
+        // Create UI (fixed to camera)
         this.createUI();
 
         // Setup neuron click handler for destruction
@@ -152,22 +164,97 @@ export default class ProtectorGame extends Scene {
     }
 
     /**
-     * Create UI elements
+     * Setup camera panning controls
+     */
+    private setupCameraControls(): void {
+        if (!this.networkManager) return;
+
+        // Get world bounds from network
+        const bounds = this.networkManager.getWorldBounds();
+        const worldWidth = bounds.maxX - bounds.minX;
+        const worldHeight = bounds.maxY - bounds.minY;
+
+        // Set camera bounds
+        this.cameras.main.setBounds(
+            bounds.minX,
+            bounds.minY,
+            worldWidth,
+            worldHeight
+        );
+
+        // Center camera initially
+        this.cameras.main.centerOn(
+            (bounds.minX + bounds.maxX) / 2,
+            (bounds.minY + bounds.maxY) / 2
+        );
+
+        // Setup keyboard controls
+        if (this.input.keyboard) {
+            this.cursors = this.input.keyboard.createCursorKeys();
+            this.wasdKeys = {
+                W: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.W),
+                A: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.A),
+                S: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.S),
+                D: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.D),
+            };
+        }
+
+        // Setup drag to pan
+        this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+            // Only start drag with middle mouse button or right click
+            if (pointer.middleButtonDown() || pointer.rightButtonDown()) {
+                this.isDragging = true;
+                this.dragStartX = pointer.x;
+                this.dragStartY = pointer.y;
+                this.cameraStartX = this.cameras.main.scrollX;
+                this.cameraStartY = this.cameras.main.scrollY;
+            }
+        });
+
+        this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => {
+            if (this.isDragging) {
+                const dragX = pointer.x - this.dragStartX;
+                const dragY = pointer.y - this.dragStartY;
+                this.cameras.main.scrollX = this.cameraStartX - dragX;
+                this.cameras.main.scrollY = this.cameraStartY - dragY;
+            }
+        });
+
+        this.input.on("pointerup", () => {
+            this.isDragging = false;
+        });
+
+        // Prevent context menu on right click
+        this.input.mouse?.disableContextMenu();
+    }
+
+    /**
+     * Create UI elements (fixed to camera)
      */
     private createUI(): void {
         // Title
-        this.add.text(20, 20, "PROTECTEUR", {
+        const title = this.add.text(20, 20, "PROTECTEUR", {
             fontFamily: "Arial Black",
             fontSize: "24px",
             color: "#ed8936",
         });
+        title.setScrollFactor(0);
 
         // Instructions
-        this.add.text(20, 60, "Détruisez les neurones pour bloquer le chemin de l'IA", {
+        const instructions = this.add.text(20, 60, "Détruisez les neurones pour bloquer le chemin de l'IA", {
             fontFamily: "Arial",
             fontSize: "16px",
             color: "#a0aec0",
         });
+        instructions.setScrollFactor(0);
+
+        // Camera controls hint
+        const hint = this.add.text(20, 85, "Clic droit + glisser ou flèches/WASD pour déplacer la vue", {
+            fontFamily: "Arial",
+            fontSize: "12px",
+            color: "#718096",
+        });
+        hint.setScrollFactor(0);
 
         // Resource display
         this.createResourceUI();
@@ -177,27 +264,31 @@ export default class ProtectorGame extends Scene {
     }
 
     /**
-     * Create resource UI
+     * Create resource UI (fixed to camera)
      */
     private createResourceUI(): void {
         const x = GameConfig.SCREEN_WIDTH - 220;
         const y = 20;
 
         // Background
-        this.add.rectangle(x + 100, y + 25, 200, 50, 0x2d3748).setStrokeStyle(2, 0x4a5568);
+        const bg = this.add.rectangle(x + 100, y + 25, 200, 50, 0x2d3748).setStrokeStyle(2, 0x4a5568);
+        bg.setScrollFactor(0);
 
         // Label
-        this.add.text(x, y, "Ressources", {
+        const label = this.add.text(x, y, "Ressources", {
             fontFamily: "Arial",
             fontSize: "14px",
             color: "#a0aec0",
         });
+        label.setScrollFactor(0);
 
         // Resource bar background
-        this.add.rectangle(x + 100, y + 35, 180, 16, 0x1a202c);
+        const barBg = this.add.rectangle(x + 100, y + 35, 180, 16, 0x1a202c);
+        barBg.setScrollFactor(0);
 
         // Resource bar fill
         this.resourceBar = this.add.graphics();
+        this.resourceBar.setScrollFactor(0);
         this.updateResourceBar(this.resourceManager.getPercentage());
 
         // Resource text
@@ -206,6 +297,7 @@ export default class ProtectorGame extends Scene {
             fontSize: "12px",
             color: "#ffffff",
         }).setOrigin(0.5);
+        this.resourceText.setScrollFactor(0);
 
         this.updateResourceUI(
             this.resourceManager.getResources(),
@@ -243,13 +335,14 @@ export default class ProtectorGame extends Scene {
     }
 
     /**
-     * Create firewall button
+     * Create firewall button (fixed to camera)
      */
     private createFirewallButton(): void {
         const x = GameConfig.SCREEN_WIDTH - 120;
-        const y = 90;
+        const y = 110;
 
         this.firewallButton = this.add.container(x, y);
+        this.firewallButton.setScrollFactor(0);
 
         const bg = this.add.rectangle(0, 0, 180, 45, 0x4299e1);
         bg.setStrokeStyle(2, 0xffffff);
@@ -432,10 +525,52 @@ export default class ProtectorGame extends Scene {
      */
     update(_time: number, delta: number): void {
         this.aiManager?.update(delta);
+
+        // Handle keyboard camera controls
+        this.updateCameraControls(delta);
     }
 
     /**
-     * Show a temporary message
+     * Update camera with keyboard controls
+     */
+    private updateCameraControls(delta: number): void {
+        const speed = 0.5 * delta; // Pixels per ms
+
+        // Arrow keys
+        if (this.cursors) {
+            if (this.cursors.left.isDown) {
+                this.cameras.main.scrollX -= speed;
+            }
+            if (this.cursors.right.isDown) {
+                this.cameras.main.scrollX += speed;
+            }
+            if (this.cursors.up.isDown) {
+                this.cameras.main.scrollY -= speed;
+            }
+            if (this.cursors.down.isDown) {
+                this.cameras.main.scrollY += speed;
+            }
+        }
+
+        // WASD keys
+        if (this.wasdKeys) {
+            if (this.wasdKeys.A.isDown) {
+                this.cameras.main.scrollX -= speed;
+            }
+            if (this.wasdKeys.D.isDown) {
+                this.cameras.main.scrollX += speed;
+            }
+            if (this.wasdKeys.W.isDown) {
+                this.cameras.main.scrollY -= speed;
+            }
+            if (this.wasdKeys.S.isDown) {
+                this.cameras.main.scrollY += speed;
+            }
+        }
+    }
+
+    /**
+     * Show a temporary message (fixed to camera)
      */
     private showMessage(text: string): void {
         const msg = this.add.text(
@@ -450,24 +585,27 @@ export default class ProtectorGame extends Scene {
                 padding: { x: 20, y: 10 },
             }
         ).setOrigin(0.5);
+        msg.setScrollFactor(0);
 
+        const startY = msg.y;
         this.tweens.add({
             targets: msg,
             alpha: 0,
-            y: msg.y - 50,
+            y: startY - 50,
             duration: 2000,
             onComplete: () => msg.destroy(),
         });
     }
 
     /**
-     * Show pause popup
+     * Show pause popup (fixed to camera)
      */
     private showPausePopup(title: string, message: string): void {
         const centerX = GameConfig.SCREEN_WIDTH / 2;
         const centerY = GameConfig.SCREEN_HEIGHT / 2;
 
         const container = this.add.container(centerX, centerY);
+        container.setScrollFactor(0);
 
         const bg = this.add.rectangle(0, 0, 400, 200, 0x000000, 0.9);
         bg.setStrokeStyle(3, 0xe53e3e);
