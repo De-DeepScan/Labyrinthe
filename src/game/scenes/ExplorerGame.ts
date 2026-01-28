@@ -1,0 +1,387 @@
+import { Scene } from "phaser";
+import type { NeuralNetworkData, Synapse } from "../types/interfaces";
+import { SynapseState, NeuronType } from "../types/interfaces";
+import { NeuralNetworkGenerator } from "../generators/NeuralNetworkGenerator";
+import { NeuralNetworkManager } from "../managers/NeuralNetworkManager";
+import { PuzzleManager } from "../managers/PuzzleManager";
+import { NetworkManager } from "../services/NetworkManager";
+import { GameConfig } from "../config/GameConfig";
+import { EventBus } from "../EventBus";
+
+/**
+ * Explorer's game scene - navigate the neural network by solving puzzles
+ */
+export default class ExplorerGame extends Scene {
+    private networkData!: NeuralNetworkData;
+    private networkManager!: NeuralNetworkManager;
+    private puzzleManager!: PuzzleManager;
+    private networkService!: NetworkManager;
+
+    private currentNeuronId!: string;
+    private activatedPath: string[] = [];
+    private isPuzzleSolving: boolean = false;
+
+
+    constructor() {
+        super("ExplorerGame");
+    }
+
+    create(): void {
+        this.networkService = NetworkManager.getInstance();
+
+        // Generate the neural network
+        this.networkData = NeuralNetworkGenerator.generate();
+
+        // Send to Protector
+        this.networkService.sendNetworkData(this.networkData);
+
+        // Initialize starting position
+        this.currentNeuronId = this.networkData.entryNeuronId;
+        this.activatedPath = [this.currentNeuronId];
+
+        // Mark entry as activated
+        this.networkData.neurons[this.currentNeuronId].isActivated = true;
+
+        // Create network manager with fog of war
+        this.networkManager = new NeuralNetworkManager(this, this.networkData, {
+            showAIPath: false,
+            showAllSynapses: false,
+            enableFog: true,
+        });
+        this.networkManager.render();
+
+        // Create puzzle manager
+        this.puzzleManager = new PuzzleManager(this);
+        this.setupPuzzleCallbacks();
+
+        // Create UI
+        this.createUI();
+
+        // Setup event listeners
+        this.setupEventListeners();
+
+        // Send initial position
+        this.networkService.sendExplorerMoved({
+            neuronId: this.currentNeuronId,
+            activatedPath: this.activatedPath,
+        });
+
+        EventBus.emit("current-scene-ready", this);
+    }
+
+    /**
+     * Create UI elements
+     */
+    private createUI(): void {
+        // Status text
+        this.add.text(20, 20, "EXPLORER", {
+            fontFamily: "Arial Black",
+            fontSize: "24px",
+            color: "#4299e1",
+        });
+
+        // Instructions
+        this.add.text(
+            20,
+            60,
+            "Click on adjacent neurons to create connections",
+            {
+                fontFamily: "Arial",
+                fontSize: "16px",
+                color: "#a0aec0",
+            }
+        );
+
+        // Objective indicator
+        this.add.text(20, GameConfig.SCREEN_HEIGHT - 40, "Objective: Reach the CORE (orange)", {
+            fontFamily: "Arial",
+            fontSize: "14px",
+            color: "#ed8936",
+        });
+    }
+
+    /**
+     * Setup puzzle callbacks
+     */
+    private setupPuzzleCallbacks(): void {
+        this.puzzleManager.onComplete((synapseId) => {
+            this.onPuzzleComplete(synapseId);
+        });
+
+        this.puzzleManager.onClose(() => {
+            this.isPuzzleSolving = false;
+        });
+    }
+
+    /**
+     * Setup event listeners
+     */
+    private setupEventListeners(): void {
+        // Neuron click handler
+        EventBus.on("neuron-clicked", this.onNeuronClicked, this);
+
+        // AI caught explorer
+        EventBus.on("network-ai-connected", this.onAICaught, this);
+
+        // Synapse blocked by protector
+        EventBus.on("network-synapse-blocked", this.onSynapseBlocked, this);
+    }
+
+    /**
+     * Handle neuron click
+     */
+    private onNeuronClicked(neuronId: string): void {
+        if (this.isPuzzleSolving) return;
+
+        const targetNeuron = this.networkData.neurons[neuronId];
+        const currentNeuron = this.networkData.neurons[this.currentNeuronId];
+
+        if (!targetNeuron || !currentNeuron) return;
+
+        // Check if it's an adjacent neuron
+        if (!currentNeuron.connections.includes(neuronId)) {
+            this.showMessage("Not connected to this neuron!");
+            return;
+        }
+
+        // Check if already activated (can move freely on activated path)
+        if (targetNeuron.isActivated) {
+            this.moveToNeuron(neuronId);
+            return;
+        }
+
+        // Find the synapse between current and target
+        const synapse = this.findSynapse(this.currentNeuronId, neuronId);
+        if (!synapse) {
+            this.showMessage("No connection found!");
+            return;
+        }
+
+        // Check if synapse is blocked
+        if (synapse.state === SynapseState.BLOCKED) {
+            this.showMessage("This connection is blocked!");
+            return;
+        }
+
+        // Start puzzle to create connection
+        this.startPuzzle(synapse);
+    }
+
+    /**
+     * Find synapse between two neurons
+     */
+    private findSynapse(aId: string, bId: string): Synapse | undefined {
+        return Object.values(this.networkData.synapses).find(
+            (s) =>
+                (s.fromNeuronId === aId && s.toNeuronId === bId) ||
+                (s.fromNeuronId === bId && s.toNeuronId === aId)
+        );
+    }
+
+    /**
+     * Start puzzle for a synapse
+     */
+    private startPuzzle(synapse: Synapse): void {
+        this.isPuzzleSolving = true;
+
+        // Update synapse state
+        synapse.state = SynapseState.SOLVING;
+        this.networkManager.updateSynapseState(synapse.id, SynapseState.SOLVING);
+
+        // Notify protector
+        this.networkService.sendPuzzleStarted(synapse.id);
+
+        // Start the puzzle
+        this.puzzleManager.startPuzzle(synapse.id, synapse.difficulty);
+    }
+
+    /**
+     * Handle puzzle completion
+     */
+    private onPuzzleComplete(synapseId: string): void {
+        this.isPuzzleSolving = false;
+
+        const synapse = this.networkData.synapses[synapseId];
+        if (!synapse) return;
+
+        // Activate the synapse
+        synapse.state = SynapseState.ACTIVE;
+        this.networkManager.updateSynapseState(synapseId, SynapseState.ACTIVE);
+
+        // Determine target neuron
+        const targetId = synapse.fromNeuronId === this.currentNeuronId
+            ? synapse.toNeuronId
+            : synapse.fromNeuronId;
+
+        // Activate target neuron
+        const targetNeuron = this.networkData.neurons[targetId];
+        targetNeuron.isActivated = true;
+        this.networkManager.updateNeuronState(targetId);
+
+        // Notify protector
+        this.networkService.sendSynapseActivated(synapseId);
+        this.networkService.sendPuzzleCompleted(synapseId);
+
+        // Move to the new neuron
+        this.moveToNeuron(targetId);
+    }
+
+    /**
+     * Move explorer to a neuron
+     */
+    private async moveToNeuron(neuronId: string): Promise<void> {
+        this.currentNeuronId = neuronId;
+
+        // Update path if not already included
+        if (!this.activatedPath.includes(neuronId)) {
+            this.activatedPath.push(neuronId);
+        }
+
+        // Animate movement
+        await this.networkManager.moveExplorerTo(neuronId);
+
+        // Send position update
+        this.networkService.sendExplorerMoved({
+            neuronId: this.currentNeuronId,
+            activatedPath: this.activatedPath,
+        });
+
+        // Check for victory
+        this.checkVictory();
+    }
+
+    /**
+     * Check if explorer reached the core
+     */
+    private checkVictory(): void {
+        const neuron = this.networkData.neurons[this.currentNeuronId];
+
+        if (neuron.type === NeuronType.CORE) {
+            this.onVictory();
+        }
+    }
+
+    /**
+     * Handle victory
+     */
+    private onVictory(): void {
+        this.networkService.sendGameWon();
+        this.scene.start("Victory");
+    }
+
+    /**
+     * Handle AI catching explorer
+     */
+    private onAICaught(_data: { neuronId: string; explorerPushedTo: string }): void {
+        // Show notification
+        this.showPausePopup("AI DETECTED!", "The AI connected to your network!");
+
+        // Move explorer back
+        this.time.delayedCall(2000, () => {
+            this.moveBackOnPath();
+        });
+    }
+
+    /**
+     * Move explorer back on the path
+     */
+    private moveBackOnPath(): void {
+        if (this.activatedPath.length <= 1) return;
+
+        // Remove last neuron from path
+        this.activatedPath.pop();
+        const newPosition = this.activatedPath[this.activatedPath.length - 1];
+
+        // Move to previous position
+        this.moveToNeuron(newPosition);
+
+        this.showMessage("Pushed back! Keep going!");
+    }
+
+    /**
+     * Handle synapse blocked
+     */
+    private onSynapseBlocked({ synapseId }: { synapseId: string }): void {
+        const synapse = this.networkData.synapses[synapseId];
+        if (synapse) {
+            synapse.state = SynapseState.BLOCKED;
+            this.networkManager.updateSynapseState(synapseId, SynapseState.BLOCKED);
+        }
+    }
+
+    /**
+     * Show a temporary message
+     */
+    private showMessage(text: string): void {
+        const msg = this.add.text(
+            GameConfig.SCREEN_WIDTH / 2,
+            GameConfig.SCREEN_HEIGHT - 100,
+            text,
+            {
+                fontFamily: "Arial",
+                fontSize: "20px",
+                color: "#ffffff",
+                backgroundColor: "#2d3748",
+                padding: { x: 20, y: 10 },
+            }
+        ).setOrigin(0.5);
+
+        this.tweens.add({
+            targets: msg,
+            alpha: 0,
+            y: msg.y - 50,
+            duration: 2000,
+            onComplete: () => msg.destroy(),
+        });
+    }
+
+    /**
+     * Show pause popup
+     */
+    private showPausePopup(title: string, message: string): void {
+        const centerX = GameConfig.SCREEN_WIDTH / 2;
+        const centerY = GameConfig.SCREEN_HEIGHT / 2;
+
+        const container = this.add.container(centerX, centerY);
+
+        const bg = this.add.rectangle(0, 0, 400, 200, 0x000000, 0.9);
+        bg.setStrokeStyle(3, 0xe53e3e);
+
+        const titleText = this.add.text(0, -50, title, {
+            fontFamily: "Arial Black",
+            fontSize: "32px",
+            color: "#e53e3e",
+        }).setOrigin(0.5);
+
+        const messageText = this.add.text(0, 10, message, {
+            fontFamily: "Arial",
+            fontSize: "18px",
+            color: "#ffffff",
+        }).setOrigin(0.5);
+
+        container.add([bg, titleText, messageText]);
+        container.setDepth(1000);
+
+        // Fade out after delay
+        this.time.delayedCall(1800, () => {
+            this.tweens.add({
+                targets: container,
+                alpha: 0,
+                duration: 200,
+                onComplete: () => container.destroy(),
+            });
+        });
+    }
+
+    /**
+     * Cleanup
+     */
+    shutdown(): void {
+        EventBus.off("neuron-clicked", this.onNeuronClicked, this);
+        EventBus.off("network-ai-connected", this.onAICaught, this);
+        EventBus.off("network-synapse-blocked", this.onSynapseBlocked, this);
+
+        this.networkManager?.destroy();
+        this.puzzleManager?.destroy();
+    }
+}
