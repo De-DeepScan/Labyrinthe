@@ -5,8 +5,13 @@ import { NEURAL_NETWORK_CONFIG } from "../config/NeuralNetworkConfig";
 import { DEPTH } from "../config/Constants";
 import { EventBus } from "../EventBus";
 
+// Isometric constants (same as NeuralNetworkManager)
+const ISO_ANGLE = Math.PI / 6;
+const ISO_SCALE_Y = 0.5;
+
 /**
  * Manages AI behavior and pursuit of the explorer
+ * Now with isometric rendering
  */
 export class AIManager {
     private scene: Scene;
@@ -26,12 +31,12 @@ export class AIManager {
     private hackingDuration: number = NEURAL_NETWORK_CONFIG.AI_HACK_TIME;
 
     // Visual elements
-    private aiSprite?: Phaser.GameObjects.Arc;
+    private aiContainer?: Phaser.GameObjects.Container;
     private pathGraphics?: Phaser.GameObjects.Graphics;
     private hackingBar?: Phaser.GameObjects.Graphics;
     private hackingText?: Phaser.GameObjects.Text;
 
-    // Offset for rendering (same as NeuralNetworkManager)
+    // Offset for rendering (screen center)
     private offsetX: number = 0;
     private offsetY: number = 0;
 
@@ -43,13 +48,17 @@ export class AIManager {
     constructor(
         scene: Scene,
         networkData: NeuralNetworkData,
-        offsetX: number = 0,
-        offsetY: number = 0
+        _offsetX: number = 0,
+        _offsetY: number = 0
     ) {
         this.scene = scene;
         this.networkData = networkData;
-        this.offsetX = offsetX;
-        this.offsetY = offsetY;
+
+        // Calculate offset for isometric view (screen center)
+        const screenWidth = scene.cameras.main.width;
+        const screenHeight = scene.cameras.main.height;
+        this.offsetX = screenWidth / 2;
+        this.offsetY = screenHeight / 2 - 50;
 
         // Initialize AI state
         this.state = this.createInitialState();
@@ -58,6 +67,24 @@ export class AIManager {
         this.createVisuals();
 
         this.gameStartTime = Date.now();
+    }
+
+    /**
+     * Convert cartesian coordinates to isometric
+     */
+    private toIsometric(x: number, y: number): { x: number; y: number } {
+        const centerX = this.networkData.width / 2;
+        const centerY = this.networkData.height / 2;
+        const dx = x - centerX;
+        const dy = y - centerY;
+
+        const isoX = (dx - dy) * Math.cos(ISO_ANGLE);
+        const isoY = (dx + dy) * ISO_SCALE_Y;
+
+        return {
+            x: isoX + this.offsetX,
+            y: isoY + this.offsetY,
+        };
     }
 
     /**
@@ -95,34 +122,87 @@ export class AIManager {
     }
 
     /**
-     * Create AI visual elements
+     * Create AI visual elements - isometric menacing shape
      */
     private createVisuals(): void {
         const neuron = this.networkData.neurons[this.state.currentNeuronId];
         if (!neuron) return;
 
-        const x = neuron.x + this.offsetX;
-        const y = neuron.y + this.offsetY;
+        const isoPos = this.toIsometric(neuron.x, neuron.y);
 
-        // AI sprite - menacing red pulsing circle
-        this.aiSprite = this.scene.add.circle(x, y, 18, NEURAL_NETWORK_CONFIG.COLORS.AI_ENTITY, 0.9);
-        this.aiSprite.setDepth(DEPTH.AI_ENTITY);
-        this.aiSprite.setStrokeStyle(3, 0xffffff, 0.7);
+        // Create container for AI entity
+        this.aiContainer = this.scene.add.container(isoPos.x, isoPos.y);
+        this.aiContainer.setDepth(DEPTH.AI_ENTITY);
+
+        // Create menacing AI shape - a spiky octagon
+        const aiGraphics = this.scene.add.graphics();
+        this.drawAIShape(aiGraphics, 0, 0, 16, NEURAL_NETWORK_CONFIG.COLORS.AI_ENTITY);
+        this.aiContainer.add(aiGraphics);
+
+        // Add glowing core
+        const core = this.scene.add.graphics();
+        core.fillStyle(0xff0000, 0.8);
+        core.fillCircle(0, 0, 6);
+        this.aiContainer.add(core);
 
         // Pulse animation
         this.scene.tweens.add({
-            targets: this.aiSprite,
+            targets: this.aiContainer,
             scale: { from: 0.9, to: 1.2 },
-            alpha: { from: 0.7, to: 1 },
             duration: 400,
             yoyo: true,
             repeat: -1,
             ease: "Sine.easeInOut",
         });
 
+        // Rotation animation for menacing effect
+        this.scene.tweens.add({
+            targets: this.aiContainer,
+            angle: 360,
+            duration: 3000,
+            repeat: -1,
+            ease: "Linear",
+        });
+
         // Path visualization graphics
         this.pathGraphics = this.scene.add.graphics();
         this.pathGraphics.setDepth(DEPTH.AI_PATH);
+    }
+
+    /**
+     * Draw a spiky AI shape
+     */
+    private drawAIShape(graphics: Phaser.GameObjects.Graphics, x: number, y: number, radius: number, color: number): void {
+        const points: { x: number; y: number }[] = [];
+        const spikes = 8;
+
+        for (let i = 0; i < spikes * 2; i++) {
+            const angle = (i * Math.PI) / spikes - Math.PI / 2;
+            const r = i % 2 === 0 ? radius : radius * 0.6;
+            const px = x + r * Math.cos(angle);
+            const py = y + r * Math.sin(angle) * ISO_SCALE_Y;
+            points.push({ x: px, y: py });
+        }
+
+        // Fill
+        graphics.fillStyle(color, 0.9);
+        graphics.beginPath();
+        graphics.moveTo(points[0].x, points[0].y);
+        for (let i = 1; i < points.length; i++) {
+            graphics.lineTo(points[i].x, points[i].y);
+        }
+        graphics.closePath();
+        graphics.fillPath();
+
+        // Stroke
+        graphics.lineStyle(2, 0xffffff, 0.7);
+        graphics.beginPath();
+        graphics.moveTo(points[0].x, points[0].y);
+        for (let i = 1; i < points.length; i++) {
+            graphics.lineTo(points[i].x, points[i].y);
+        }
+        graphics.closePath();
+        graphics.strokePath();
     }
 
     /**
@@ -230,7 +310,7 @@ export class AIManager {
     }
 
     /**
-     * Draw the AI's planned path
+     * Draw the AI's planned path (isometric)
      */
     private drawPath(): void {
         if (!this.pathGraphics) return;
@@ -248,13 +328,11 @@ export class AIManager {
 
             if (!from || !to) continue;
 
+            const fromIso = this.toIsometric(from.x, from.y);
+            const toIso = this.toIsometric(to.x, to.y);
+
             // Draw dashed line segments
-            this.drawDashedLine(
-                from.x + this.offsetX,
-                from.y + this.offsetY,
-                to.x + this.offsetX,
-                to.y + this.offsetY
-            );
+            this.drawDashedLine(fromIso.x, fromIso.y, toIso.x, toIso.y);
         }
     }
 
@@ -462,7 +540,7 @@ export class AIManager {
     }
 
     /**
-     * Create hacking progress visual
+     * Create hacking progress visual (isometric)
      */
     private createHackingVisual(): void {
         if (!this.hackingNeuronId) return;
@@ -470,15 +548,14 @@ export class AIManager {
         const neuron = this.networkData.neurons[this.hackingNeuronId];
         if (!neuron) return;
 
-        const x = neuron.x + this.offsetX;
-        const y = neuron.y + this.offsetY;
+        const isoPos = this.toIsometric(neuron.x, neuron.y);
 
         // Hacking progress bar background
         this.hackingBar = this.scene.add.graphics();
         this.hackingBar.setDepth(DEPTH.AI_ENTITY + 1);
 
         // Hacking text
-        this.hackingText = this.scene.add.text(x, y - 40, "RÉTABLISSEMENT...", {
+        this.hackingText = this.scene.add.text(isoPos.x, isoPos.y - 40, "RÉTABLISSEMENT...", {
             fontFamily: "Arial Black",
             fontSize: "12px",
             color: "#e53e3e",
@@ -496,7 +573,7 @@ export class AIManager {
     }
 
     /**
-     * Update hacking progress bar
+     * Update hacking progress bar (isometric)
      */
     private updateHackingVisual(): void {
         if (!this.hackingBar || !this.hackingNeuronId) return;
@@ -504,19 +581,18 @@ export class AIManager {
         const neuron = this.networkData.neurons[this.hackingNeuronId];
         if (!neuron) return;
 
-        const x = neuron.x + this.offsetX;
-        const y = neuron.y + this.offsetY;
+        const isoPos = this.toIsometric(neuron.x, neuron.y);
 
         this.hackingBar.clear();
 
         // Background bar
         this.hackingBar.fillStyle(0x1a202c, 0.8);
-        this.hackingBar.fillRect(x - 30, y - 55, 60, 8);
+        this.hackingBar.fillRect(isoPos.x - 30, isoPos.y - 55, 60, 8);
 
         // Progress bar
         const progress = this.hackingProgress / this.hackingDuration;
         this.hackingBar.fillStyle(0xe53e3e, 1);
-        this.hackingBar.fillRect(x - 30, y - 55, 60 * progress, 8);
+        this.hackingBar.fillRect(isoPos.x - 30, isoPos.y - 55, 60 * progress, 8);
     }
 
     /**
@@ -576,30 +652,33 @@ export class AIManager {
     }
 
     /**
-     * Update AI sprite to current neuron position
+     * Update AI sprite to current neuron position (isometric)
      */
     private updateVisualPosition(): void {
         const neuron = this.networkData.neurons[this.state.currentNeuronId];
-        if (!neuron || !this.aiSprite) return;
+        if (!neuron || !this.aiContainer) return;
 
-        this.aiSprite.setPosition(neuron.x + this.offsetX, neuron.y + this.offsetY);
+        const isoPos = this.toIsometric(neuron.x, neuron.y);
+        this.aiContainer.setPosition(isoPos.x, isoPos.y);
     }
 
     /**
-     * Interpolate AI sprite position between neurons
+     * Interpolate AI sprite position between neurons (isometric)
      */
     private interpolateVisualPosition(): void {
-        if (this.state.targetPath.length < 2 || !this.aiSprite) return;
+        if (this.state.targetPath.length < 2 || !this.aiContainer) return;
 
         const from = this.networkData.neurons[this.state.targetPath[0]];
         const to = this.networkData.neurons[this.state.targetPath[1]];
 
         if (!from || !to) return;
 
+        // Interpolate in cartesian then convert to isometric
         const x = from.x + (to.x - from.x) * this.state.moveProgress;
         const y = from.y + (to.y - from.y) * this.state.moveProgress;
+        const isoPos = this.toIsometric(x, y);
 
-        this.aiSprite.setPosition(x + this.offsetX, y + this.offsetY);
+        this.aiContainer.setPosition(isoPos.x, isoPos.y);
     }
 
     /**
@@ -609,9 +688,9 @@ export class AIManager {
         this.state.isConnected = true;
 
         // Flash effect
-        if (this.aiSprite) {
+        if (this.aiContainer) {
             this.scene.tweens.add({
-                targets: this.aiSprite,
+                targets: this.aiContainer,
                 scale: 2,
                 alpha: 0.5,
                 duration: 300,
@@ -693,9 +772,9 @@ export class AIManager {
         this.recalculatePath();
 
         // Flash animation
-        if (this.aiSprite) {
+        if (this.aiContainer) {
             this.scene.tweens.add({
-                targets: this.aiSprite,
+                targets: this.aiContainer,
                 alpha: { from: 0, to: 1 },
                 scale: { from: 0.5, to: 1 },
                 duration: 500,
@@ -774,7 +853,7 @@ export class AIManager {
      * Cleanup
      */
     destroy(): void {
-        this.aiSprite?.destroy();
+        this.aiContainer?.destroy();
         this.pathGraphics?.destroy();
         this.cleanupHackingVisual();
     }

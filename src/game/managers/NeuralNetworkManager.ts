@@ -12,16 +12,27 @@ export interface NeuralNetworkManagerOptions {
 }
 
 interface NeuronSprite {
-    circle: Phaser.GameObjects.Arc;
-    glow?: Phaser.GameObjects.Arc;
+    shape: Phaser.GameObjects.Graphics;
+    glow?: Phaser.GameObjects.Graphics;
 }
+
+// Isometric constants
+const ISO_ANGLE = Math.PI / 6; // 30 degrees
+const ISO_SCALE_Y = 0.5; // Vertical compression for isometric
 
 interface SynapseGraphics {
     line: Phaser.GameObjects.Graphics;
 }
 
+interface ExplorerSprite {
+    container: Phaser.GameObjects.Container;
+    faces: Phaser.GameObjects.Graphics[];
+    rotation: number;
+}
+
 /**
  * Manages rendering and visual state of the neural network
+ * Now with isometric view, octagon neurons, and 3D rolling decagon explorer
  */
 export class NeuralNetworkManager {
     private scene: Scene;
@@ -32,8 +43,9 @@ export class NeuralNetworkManager {
     private synapseGraphics: Map<string, SynapseGraphics> = new Map();
     private visibleNeurons: Set<string> = new Set();
 
-    private explorerSprite?: Phaser.GameObjects.Arc;
+    private explorerSprite?: ExplorerSprite;
     private explorerCurrentNeuron?: string;
+    private explorerRollTween?: Phaser.Tweens.Tween;
 
     private fogGraphics?: Phaser.GameObjects.Graphics;
 
@@ -63,8 +75,241 @@ export class NeuralNetworkManager {
         const screenWidth = this.scene.cameras.main.width;
         const screenHeight = this.scene.cameras.main.height;
 
-        this.offsetX = (screenWidth - this.networkData.width) / 2;
-        this.offsetY = (screenHeight - this.networkData.height) / 2;
+        // For isometric, we need more vertical space
+        this.offsetX = screenWidth / 2;
+        this.offsetY = screenHeight / 2 - 50;
+    }
+
+    /**
+     * Convert cartesian coordinates to isometric
+     */
+    private toIsometric(x: number, y: number): { x: number; y: number } {
+        // Center the coordinates first
+        const centerX = this.networkData.width / 2;
+        const centerY = this.networkData.height / 2;
+        const dx = x - centerX;
+        const dy = y - centerY;
+
+        // Apply isometric transformation
+        const isoX = (dx - dy) * Math.cos(ISO_ANGLE);
+        const isoY = (dx + dy) * ISO_SCALE_Y;
+
+        return {
+            x: isoX + this.offsetX,
+            y: isoY + this.offsetY,
+        };
+    }
+
+    /**
+     * Draw an octagon at the given position
+     */
+    private drawOctagon(
+        graphics: Phaser.GameObjects.Graphics,
+        x: number,
+        y: number,
+        radius: number,
+        fillColor: number,
+        fillAlpha: number = 1,
+        strokeColor: number = 0xffffff,
+        strokeAlpha: number = 0.5,
+        strokeWidth: number = 2
+    ): void {
+        const points: { x: number; y: number }[] = [];
+        const sides = 8;
+
+        // Create octagon points with isometric distortion
+        for (let i = 0; i < sides; i++) {
+            const angle = (i * 2 * Math.PI) / sides - Math.PI / 8;
+            const px = x + radius * Math.cos(angle);
+            // Apply vertical compression for isometric feel
+            const py = y + radius * Math.sin(angle) * ISO_SCALE_Y;
+            points.push({ x: px, y: py });
+        }
+
+        // Draw filled octagon
+        graphics.fillStyle(fillColor, fillAlpha);
+        graphics.beginPath();
+        graphics.moveTo(points[0].x, points[0].y);
+        for (let i = 1; i < points.length; i++) {
+            graphics.lineTo(points[i].x, points[i].y);
+        }
+        graphics.closePath();
+        graphics.fillPath();
+
+        // Draw stroke
+        graphics.lineStyle(strokeWidth, strokeColor, strokeAlpha);
+        graphics.beginPath();
+        graphics.moveTo(points[0].x, points[0].y);
+        for (let i = 1; i < points.length; i++) {
+            graphics.lineTo(points[i].x, points[i].y);
+        }
+        graphics.closePath();
+        graphics.strokePath();
+    }
+
+    /**
+     * Create a 3D decagon (10-sided) shape for the explorer
+     */
+    private createDecagon3D(x: number, y: number): ExplorerSprite {
+        const container = this.scene.add.container(x, y);
+        container.setDepth(DEPTH.EXPLORER);
+
+        const faces: Phaser.GameObjects.Graphics[] = [];
+        const radius = 14;
+        const height = 8; // 3D height
+        const baseColor = NEURAL_NETWORK_CONFIG.COLORS.EXPLORER;
+
+        // Create top face
+        const topFace = this.scene.add.graphics();
+        this.drawDecagonFace(topFace, 0, -height / 2, radius, baseColor, 1);
+        faces.push(topFace);
+        container.add(topFace);
+
+        // Create side faces (visible edges for 3D effect)
+        const sideFace = this.scene.add.graphics();
+        this.drawDecagonSides(sideFace, 0, 0, radius, height, this.darkenColor(baseColor, 0.6));
+        faces.push(sideFace);
+        container.add(sideFace);
+
+        // Create bottom face (partially visible)
+        const bottomFace = this.scene.add.graphics();
+        this.drawDecagonFace(bottomFace, 0, height / 2, radius * 0.9, this.darkenColor(baseColor, 0.4), 0.8);
+        faces.push(bottomFace);
+        container.add(bottomFace);
+
+        // Add highlight on top
+        const highlight = this.scene.add.graphics();
+        highlight.fillStyle(0xffffff, 0.3);
+        highlight.fillEllipse(0, -height / 2, radius * 0.6, radius * 0.3);
+        container.add(highlight);
+
+        return {
+            container,
+            faces,
+            rotation: 0,
+        };
+    }
+
+    /**
+     * Draw a decagon face
+     */
+    private drawDecagonFace(
+        graphics: Phaser.GameObjects.Graphics,
+        x: number,
+        y: number,
+        radius: number,
+        color: number,
+        alpha: number = 1
+    ): void {
+        const points: { x: number; y: number }[] = [];
+        const sides = 10;
+
+        for (let i = 0; i < sides; i++) {
+            const angle = (i * 2 * Math.PI) / sides - Math.PI / 2;
+            const px = x + radius * Math.cos(angle);
+            const py = y + radius * Math.sin(angle) * ISO_SCALE_Y;
+            points.push({ x: px, y: py });
+        }
+
+        graphics.fillStyle(color, alpha);
+        graphics.beginPath();
+        graphics.moveTo(points[0].x, points[0].y);
+        for (let i = 1; i < points.length; i++) {
+            graphics.lineTo(points[i].x, points[i].y);
+        }
+        graphics.closePath();
+        graphics.fillPath();
+
+        // Stroke
+        graphics.lineStyle(2, 0xffffff, 0.8);
+        graphics.beginPath();
+        graphics.moveTo(points[0].x, points[0].y);
+        for (let i = 1; i < points.length; i++) {
+            graphics.lineTo(points[i].x, points[i].y);
+        }
+        graphics.closePath();
+        graphics.strokePath();
+    }
+
+    /**
+     * Draw the sides of a 3D decagon
+     */
+    private drawDecagonSides(
+        graphics: Phaser.GameObjects.Graphics,
+        x: number,
+        y: number,
+        radius: number,
+        height: number,
+        color: number
+    ): void {
+        const sides = 10;
+        const halfHeight = height / 2;
+
+        // Draw visible side faces
+        for (let i = 0; i < sides; i++) {
+            const angle1 = (i * 2 * Math.PI) / sides - Math.PI / 2;
+            const angle2 = ((i + 1) * 2 * Math.PI) / sides - Math.PI / 2;
+
+            // Only draw front-facing sides (bottom half of the decagon)
+            if (Math.sin(angle1) > -0.3 || Math.sin(angle2) > -0.3) {
+                const x1 = x + radius * Math.cos(angle1);
+                const y1Top = y - halfHeight + radius * Math.sin(angle1) * ISO_SCALE_Y;
+                const y1Bot = y + halfHeight + radius * Math.sin(angle1) * ISO_SCALE_Y;
+
+                const x2 = x + radius * Math.cos(angle2);
+                const y2Top = y - halfHeight + radius * Math.sin(angle2) * ISO_SCALE_Y;
+                const y2Bot = y + halfHeight + radius * Math.sin(angle2) * ISO_SCALE_Y;
+
+                // Shade based on angle
+                const shade = 0.5 + 0.5 * Math.cos(angle1);
+                const faceColor = this.lerpColor(this.darkenColor(color, 0.5), color, shade);
+
+                graphics.fillStyle(faceColor, 1);
+                graphics.beginPath();
+                graphics.moveTo(x1, y1Top);
+                graphics.lineTo(x2, y2Top);
+                graphics.lineTo(x2, y2Bot);
+                graphics.lineTo(x1, y1Bot);
+                graphics.closePath();
+                graphics.fillPath();
+
+                // Edge lines
+                graphics.lineStyle(1, 0xffffff, 0.3);
+                graphics.beginPath();
+                graphics.moveTo(x1, y1Top);
+                graphics.lineTo(x1, y1Bot);
+                graphics.strokePath();
+            }
+        }
+    }
+
+    /**
+     * Darken a color by a factor
+     */
+    private darkenColor(color: number, factor: number): number {
+        const r = Math.floor(((color >> 16) & 0xff) * factor);
+        const g = Math.floor(((color >> 8) & 0xff) * factor);
+        const b = Math.floor((color & 0xff) * factor);
+        return (r << 16) | (g << 8) | b;
+    }
+
+    /**
+     * Linearly interpolate between two colors
+     */
+    private lerpColor(color1: number, color2: number, t: number): number {
+        const r1 = (color1 >> 16) & 0xff;
+        const g1 = (color1 >> 8) & 0xff;
+        const b1 = color1 & 0xff;
+
+        const r2 = (color2 >> 16) & 0xff;
+        const g2 = (color2 >> 8) & 0xff;
+        const b2 = color2 & 0xff;
+
+        const r = Math.floor(r1 + (r2 - r1) * t);
+        const g = Math.floor(g1 + (g2 - g1) * t);
+        const b = Math.floor(b1 + (b2 - b1) * t);
+
+        return (r << 16) | (g << 8) | b;
     }
 
     /**
@@ -127,7 +372,7 @@ export class NeuralNetworkManager {
     }
 
     /**
-     * Draw synapse line with appropriate style
+     * Draw synapse line with appropriate style (isometric)
      */
     private drawSynapseLine(
         graphics: Phaser.GameObjects.Graphics,
@@ -138,11 +383,13 @@ export class NeuralNetworkManager {
         graphics.clear();
 
         const { color, width, alpha } = this.getSynapseStyle(synapse.state);
+        const fromIso = this.toIsometric(from.x, from.y);
+        const toIso = this.toIsometric(to.x, to.y);
 
         graphics.lineStyle(width, color, alpha);
         graphics.beginPath();
-        graphics.moveTo(from.x + this.offsetX, from.y + this.offsetY);
-        graphics.lineTo(to.x + this.offsetX, to.y + this.offsetY);
+        graphics.moveTo(fromIso.x, fromIso.y);
+        graphics.lineTo(toIso.x, toIso.y);
         graphics.strokePath();
     }
 
@@ -208,19 +455,19 @@ export class NeuralNetworkManager {
     }
 
     /**
-     * Render a single neuron
+     * Render a single neuron as an octagon (isometric)
      */
     private renderNeuron(neuron: Neuron): void {
-        const x = neuron.x + this.offsetX;
-        const y = neuron.y + this.offsetY;
+        const isoPos = this.toIsometric(neuron.x, neuron.y);
         const radius = this.getNeuronRadius(neuron);
         const color = this.getNeuronColor(neuron);
 
         // Create glow for special neurons
-        let glow: Phaser.GameObjects.Arc | undefined;
+        let glow: Phaser.GameObjects.Graphics | undefined;
         if (neuron.type === NeuronType.CORE || neuron.type === NeuronType.ENTRY) {
-            glow = this.scene.add.circle(x, y, radius + 10, color, 0.3);
+            glow = this.scene.add.graphics();
             glow.setDepth(DEPTH.NEURON - 1);
+            this.drawOctagon(glow, isoPos.x, isoPos.y, radius + 12, color, 0.3, color, 0, 0);
 
             // Pulse animation
             this.scene.tweens.add({
@@ -233,16 +480,55 @@ export class NeuralNetworkManager {
             });
         }
 
-        // Main circle
-        const circle = this.scene.add.circle(x, y, radius, color);
-        circle.setDepth(DEPTH.NEURON);
-        circle.setStrokeStyle(2, 0xffffff, 0.5);
+        // Main octagon shape
+        const shape = this.scene.add.graphics();
+        shape.setDepth(DEPTH.NEURON);
+
+        // Draw octagon with 3D effect (darker bottom edge)
+        this.drawOctagon3D(shape, isoPos.x, isoPos.y, radius, color);
 
         // Store reference
-        this.neuronSprites.set(neuron.id, { circle, glow });
+        this.neuronSprites.set(neuron.id, { shape, glow });
 
         // Initially visible
         this.visibleNeurons.add(neuron.id);
+    }
+
+    /**
+     * Draw an octagon with 3D isometric effect
+     */
+    private drawOctagon3D(
+        graphics: Phaser.GameObjects.Graphics,
+        x: number,
+        y: number,
+        radius: number,
+        color: number
+    ): void {
+        const height = 6; // 3D depth
+        const sides = 8;
+
+        // Draw shadow/bottom
+        const bottomColor = this.darkenColor(color, 0.4);
+        const points: { x: number; y: number }[] = [];
+
+        for (let i = 0; i < sides; i++) {
+            const angle = (i * 2 * Math.PI) / sides - Math.PI / 8;
+            const px = x + radius * Math.cos(angle);
+            const py = y + height + radius * Math.sin(angle) * ISO_SCALE_Y;
+            points.push({ x: px, y: py });
+        }
+
+        graphics.fillStyle(bottomColor, 1);
+        graphics.beginPath();
+        graphics.moveTo(points[0].x, points[0].y);
+        for (let i = 1; i < points.length; i++) {
+            graphics.lineTo(points[i].x, points[i].y);
+        }
+        graphics.closePath();
+        graphics.fillPath();
+
+        // Draw top face
+        this.drawOctagon(graphics, x, y, radius, color, 1, 0xffffff, 0.6, 2);
     }
 
     /**
@@ -282,31 +568,22 @@ export class NeuralNetworkManager {
     }
 
     /**
-     * Create explorer sprite
+     * Create explorer sprite as a 3D rolling decagon
      */
     private createExplorerSprite(): void {
         const entryNeuron = this.networkData.neurons[this.networkData.entryNeuronId];
         if (!entryNeuron) return;
 
-        const x = entryNeuron.x + this.offsetX;
-        const y = entryNeuron.y + this.offsetY;
+        const isoPos = this.toIsometric(entryNeuron.x, entryNeuron.y);
 
-        this.explorerSprite = this.scene.add.circle(
-            x,
-            y,
-            12,
-            NEURAL_NETWORK_CONFIG.COLORS.EXPLORER
-        );
-        this.explorerSprite.setDepth(DEPTH.EXPLORER);
-        this.explorerSprite.setStrokeStyle(3, 0xffffff);
-
+        this.explorerSprite = this.createDecagon3D(isoPos.x, isoPos.y);
         this.explorerCurrentNeuron = this.networkData.entryNeuronId;
 
-        // Pulse animation
+        // Idle floating animation
         this.scene.tweens.add({
-            targets: this.explorerSprite,
-            scale: { from: 1, to: 1.15 },
-            duration: 600,
+            targets: this.explorerSprite.container,
+            y: isoPos.y - 3,
+            duration: 800,
             yoyo: true,
             repeat: -1,
             ease: "Sine.easeInOut",
@@ -335,7 +612,7 @@ export class NeuralNetworkManager {
         // Update visibility of neurons
         for (const [neuronId, sprite] of this.neuronSprites) {
             const isVisible = visibleIds.has(neuronId);
-            sprite.circle.setAlpha(isVisible ? 1 : 0.15);
+            sprite.shape.setAlpha(isVisible ? 1 : 0.15);
             if (sprite.glow) {
                 sprite.glow.setAlpha(isVisible ? 0.3 : 0.05);
             }
@@ -405,28 +682,35 @@ export class NeuralNetworkManager {
      * Setup interaction handlers
      */
     private setupInteraction(): void {
-        // Make neurons interactive
+        // Make neurons interactive - need to create hit areas for graphics
         for (const [neuronId, sprite] of this.neuronSprites) {
-            sprite.circle.setInteractive({ useHandCursor: true });
+            const neuron = this.networkData.neurons[neuronId];
+            const isoPos = this.toIsometric(neuron.x, neuron.y);
+            const radius = this.getNeuronRadius(neuron);
 
-            sprite.circle.on("pointerover", () => {
-                sprite.circle.setScale(1.2);
+            // Create an invisible hit area
+            const hitArea = this.scene.add.circle(isoPos.x, isoPos.y, radius, 0x000000, 0);
+            hitArea.setDepth(DEPTH.NEURON + 1);
+            hitArea.setInteractive({ useHandCursor: true });
+
+            hitArea.on("pointerover", () => {
+                sprite.shape.setScale(1.15);
             });
 
-            sprite.circle.on("pointerout", () => {
-                sprite.circle.setScale(1);
+            hitArea.on("pointerout", () => {
+                sprite.shape.setScale(1);
             });
 
-            sprite.circle.on("pointerdown", () => {
+            hitArea.on("pointerdown", () => {
                 EventBus.emit("neuron-clicked", neuronId);
             });
         }
     }
 
     /**
-     * Move explorer to a new neuron with animation
+     * Move explorer to a new neuron with rolling animation
      */
-    moveExplorerTo(neuronId: string, duration: number = 300): Promise<void> {
+    moveExplorerTo(neuronId: string, duration: number = 400): Promise<void> {
         return new Promise((resolve) => {
             const neuron = this.networkData.neurons[neuronId];
             if (!neuron || !this.explorerSprite) {
@@ -434,22 +718,48 @@ export class NeuralNetworkManager {
                 return;
             }
 
-            const x = neuron.x + this.offsetX;
-            const y = neuron.y + this.offsetY;
+            const isoPos = this.toIsometric(neuron.x, neuron.y);
+            const container = this.explorerSprite.container;
 
+            // Calculate direction for roll rotation
+            const dx = isoPos.x - container.x;
+            const dy = isoPos.y - container.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+
+            // Stop any existing roll tween
+            if (this.explorerRollTween) {
+                this.explorerRollTween.stop();
+            }
+
+            // Create rolling effect by animating the faces
+            const rollAngle = (distance / 14) * Math.PI; // Roll based on distance
+            const startRotation = this.explorerSprite.rotation;
+
+            // Movement tween
             this.scene.tweens.add({
-                targets: this.explorerSprite,
-                x,
-                y,
+                targets: container,
+                x: isoPos.x,
+                y: isoPos.y,
                 duration,
                 ease: "Power2",
                 onComplete: () => {
                     this.explorerCurrentNeuron = neuronId;
+                    this.explorerSprite!.rotation = startRotation + rollAngle;
                     if (this.options.enableFog) {
                         this.updateFogVisibility();
                     }
                     resolve();
                 },
+            });
+
+            // Rolling visual effect - scale oscillation to simulate 3D roll
+            this.explorerRollTween = this.scene.tweens.add({
+                targets: container,
+                scaleX: { from: 1, to: 0.85 },
+                duration: duration / 4,
+                yoyo: true,
+                repeat: 1,
+                ease: "Sine.easeInOut",
             });
         });
     }
@@ -487,13 +797,18 @@ export class NeuralNetworkManager {
         const sprite = this.neuronSprites.get(neuronId);
         if (!sprite) return;
 
+        // Redraw the octagon with new color
+        const isoPos = this.toIsometric(neuron.x, neuron.y);
+        const radius = this.getNeuronRadius(neuron);
         const color = this.getNeuronColor(neuron);
-        sprite.circle.setFillStyle(color);
+
+        sprite.shape.clear();
+        this.drawOctagon3D(sprite.shape, isoPos.x, isoPos.y, radius, color);
 
         // Flash animation on activation
         if (neuron.isActivated) {
             this.scene.tweens.add({
-                targets: sprite.circle,
+                targets: sprite.shape,
                 scale: { from: 1.5, to: 1 },
                 duration: 300,
                 ease: "Back.easeOut",
@@ -528,16 +843,15 @@ export class NeuralNetworkManager {
     }
 
     /**
-     * Get neuron at screen position
+     * Get neuron at screen position (isometric)
      */
     getNeuronAtPosition(x: number, y: number): Neuron | null {
         for (const neuron of Object.values(this.networkData.neurons)) {
-            const nx = neuron.x + this.offsetX;
-            const ny = neuron.y + this.offsetY;
+            const isoPos = this.toIsometric(neuron.x, neuron.y);
             const radius = this.getNeuronRadius(neuron);
 
-            const dx = x - nx;
-            const dy = y - ny;
+            const dx = x - isoPos.x;
+            const dy = y - isoPos.y;
             const dist = Math.sqrt(dx * dx + dy * dy);
 
             if (dist <= radius) {
@@ -595,7 +909,7 @@ export class NeuralNetworkManager {
         EventBus.off("explorer-moved", this.onExplorerMoved, this);
 
         this.neuronSprites.forEach((sprite) => {
-            sprite.circle.destroy();
+            sprite.shape.destroy();
             sprite.glow?.destroy();
         });
 
@@ -603,7 +917,8 @@ export class NeuralNetworkManager {
             graphics.line.destroy();
         });
 
-        this.explorerSprite?.destroy();
+        this.explorerSprite?.container.destroy();
+        this.explorerRollTween?.stop();
         this.fogGraphics?.destroy();
 
         this.neuronSprites.clear();
