@@ -46,6 +46,7 @@ export class NeuralNetworkManager {
     private explorerSprite?: ExplorerSprite;
     private explorerCurrentNeuron?: string;
     private explorerRollTween?: Phaser.Tweens.Tween;
+    private explorerFloatTween?: Phaser.Tweens.Tween;
 
     private fogGraphics?: Phaser.GameObjects.Graphics;
 
@@ -189,7 +190,6 @@ export class NeuralNetworkManager {
     ): void {
         // Define faces as triangular sections on a sphere
         // We'll draw 10 visible faces arranged like a pentagonal antiprism
-        const numFaces = 10;
 
         // Draw outer sphere shadow/depth
         graphics.fillStyle(this.darkenColor(baseColor, 0.3), 1);
@@ -577,10 +577,25 @@ export class NeuralNetworkManager {
         this.explorerSprite = this.createDecagon3D(isoPos.x, isoPos.y);
         this.explorerCurrentNeuron = this.networkData.entryNeuronId;
 
-        // Idle floating animation
-        this.scene.tweens.add({
+        // Start idle floating animation
+        this.startFloatAnimation(isoPos.y);
+    }
+
+    /**
+     * Start or restart the floating animation at a given base Y position
+     */
+    private startFloatAnimation(baseY: number): void {
+        if (!this.explorerSprite) return;
+
+        // Stop existing float tween
+        if (this.explorerFloatTween) {
+            this.explorerFloatTween.stop();
+        }
+
+        // Create new floating animation centered on the new position
+        this.explorerFloatTween = this.scene.tweens.add({
             targets: this.explorerSprite.container,
-            y: isoPos.y - 3,
+            y: { from: baseY, to: baseY - 3 },
             duration: 800,
             yoyo: true,
             repeat: -1,
@@ -681,7 +696,7 @@ export class NeuralNetworkManager {
      */
     private setupInteraction(): void {
         // Make neurons interactive - need to create hit areas for graphics
-        for (const [neuronId, sprite] of this.neuronSprites) {
+        for (const [neuronId] of this.neuronSprites) {
             const neuron = this.networkData.neurons[neuronId];
             const isoPos = this.toIsometric(neuron.x, neuron.y);
             const radius = this.getNeuronRadius(neuron);
@@ -717,9 +732,12 @@ export class NeuralNetworkManager {
             const dy = isoPos.y - container.y;
             const distance = Math.sqrt(dx * dx + dy * dy);
 
-            // Stop any existing roll tween
+            // Stop any existing tweens
             if (this.explorerRollTween) {
                 this.explorerRollTween.stop();
+            }
+            if (this.explorerFloatTween) {
+                this.explorerFloatTween.stop();
             }
 
             // Create rolling effect by animating the faces
@@ -739,6 +757,8 @@ export class NeuralNetworkManager {
                     if (this.options.enableFog) {
                         this.updateFogVisibility();
                     }
+                    // Restart floating animation at new position
+                    this.startFloatAnimation(isoPos.y);
                     resolve();
                 },
             });
@@ -941,6 +961,7 @@ export class NeuralNetworkManager {
 
         this.explorerSprite?.container.destroy();
         this.explorerRollTween?.stop();
+        this.explorerFloatTween?.stop();
         this.fogGraphics?.destroy();
 
         this.neuronSprites.clear();
