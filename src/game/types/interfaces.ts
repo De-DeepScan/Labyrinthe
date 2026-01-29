@@ -163,6 +163,7 @@ export type NetworkMessageType =
     | "network-generated"
     | "explorer-moved"
     | "synapse-activated"
+    | "synapse-deactivated"
     | "synapse-blocked"
     | "neuron-destroyed"
     | "neuron-hacked"

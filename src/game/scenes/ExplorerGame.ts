@@ -322,10 +322,32 @@ export default class ExplorerGame extends Scene {
     }
 
     /**
-     * Move explorer back on the path
+     * Move explorer back on the path and disconnect the last synapse
      */
     private moveBackOnPath(): void {
         if (this.activatedPath.length <= 1) return;
+
+        // Get the last neuron (current position) and the one before
+        const lastNeuronId = this.activatedPath[this.activatedPath.length - 1];
+        const previousNeuronId = this.activatedPath[this.activatedPath.length - 2];
+
+        // Find and disconnect the synapse between them
+        const synapse = this.findSynapse(lastNeuronId, previousNeuronId);
+        if (synapse && synapse.state === SynapseState.ACTIVE) {
+            // Deactivate the synapse
+            synapse.state = SynapseState.DORMANT;
+            this.networkManager.updateSynapseState(synapse.id, SynapseState.DORMANT);
+
+            // Notify protector of synapse disconnection
+            this.networkService.sendSynapseDeactivated(synapse.id);
+        }
+
+        // Deactivate the last neuron (unless it's entry or core)
+        const lastNeuron = this.networkData.neurons[lastNeuronId];
+        if (lastNeuron && lastNeuron.type !== NeuronType.ENTRY && lastNeuron.type !== NeuronType.CORE) {
+            lastNeuron.isActivated = false;
+            this.networkManager.updateNeuronState(lastNeuronId);
+        }
 
         // Remove last neuron from path
         this.activatedPath.pop();
@@ -334,7 +356,7 @@ export default class ExplorerGame extends Scene {
         // Move to previous position
         this.moveToNeuron(newPosition);
 
-        this.showMessage("Repoussé ! Continuez !");
+        this.showMessage("Repoussé ! Connexion perdue !");
     }
 
     /**

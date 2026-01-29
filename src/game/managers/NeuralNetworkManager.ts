@@ -148,39 +148,26 @@ export class NeuralNetworkManager {
     }
 
     /**
-     * Create a 3D decagon (10-sided) shape for the explorer
+     * Create a 3D ball with 10 visible faces for the explorer (icosahedron-like)
      */
     private createDecagon3D(x: number, y: number): ExplorerSprite {
         const container = this.scene.add.container(x, y);
         container.setDepth(DEPTH.EXPLORER);
 
         const faces: Phaser.GameObjects.Graphics[] = [];
-        const radius = 14;
-        const height = 8; // 3D height
+        const radius = 16;
         const baseColor = NEURAL_NETWORK_CONFIG.COLORS.EXPLORER;
 
-        // Create top face
-        const topFace = this.scene.add.graphics();
-        this.drawDecagonFace(topFace, 0, -height / 2, radius, baseColor, 1);
-        faces.push(topFace);
-        container.add(topFace);
+        // Draw the 3D ball with faceted faces
+        const ballGraphics = this.scene.add.graphics();
+        this.drawFacetedBall(ballGraphics, 0, 0, radius, baseColor);
+        faces.push(ballGraphics);
+        container.add(ballGraphics);
 
-        // Create side faces (visible edges for 3D effect)
-        const sideFace = this.scene.add.graphics();
-        this.drawDecagonSides(sideFace, 0, 0, radius, height, this.darkenColor(baseColor, 0.6));
-        faces.push(sideFace);
-        container.add(sideFace);
-
-        // Create bottom face (partially visible)
-        const bottomFace = this.scene.add.graphics();
-        this.drawDecagonFace(bottomFace, 0, height / 2, radius * 0.9, this.darkenColor(baseColor, 0.4), 0.8);
-        faces.push(bottomFace);
-        container.add(bottomFace);
-
-        // Add highlight on top
+        // Add specular highlight
         const highlight = this.scene.add.graphics();
-        highlight.fillStyle(0xffffff, 0.3);
-        highlight.fillEllipse(0, -height / 2, radius * 0.6, radius * 0.3);
+        highlight.fillStyle(0xffffff, 0.5);
+        highlight.fillEllipse(-radius * 0.3, -radius * 0.3, radius * 0.4, radius * 0.25);
         container.add(highlight);
 
         return {
@@ -191,96 +178,117 @@ export class NeuralNetworkManager {
     }
 
     /**
-     * Draw a decagon face
+     * Draw a 3D faceted ball (sphere with 10 visible faces)
      */
-    private drawDecagonFace(
+    private drawFacetedBall(
         graphics: Phaser.GameObjects.Graphics,
         x: number,
         y: number,
         radius: number,
-        color: number,
-        alpha: number = 1
+        baseColor: number
     ): void {
-        const points: { x: number; y: number }[] = [];
-        const sides = 10;
+        // Define faces as triangular sections on a sphere
+        // We'll draw 10 visible faces arranged like a pentagonal antiprism
+        const numFaces = 10;
 
-        for (let i = 0; i < sides; i++) {
-            const angle = (i * 2 * Math.PI) / sides - Math.PI / 2;
-            const px = x + radius * Math.cos(angle);
-            const py = y + radius * Math.sin(angle) * ISO_SCALE_Y;
-            points.push({ x: px, y: py });
+        // Draw outer sphere shadow/depth
+        graphics.fillStyle(this.darkenColor(baseColor, 0.3), 1);
+        graphics.fillEllipse(x + 2, y + 3, radius * 2, radius * 1.4);
+
+        // Draw the main ball outline (darker base)
+        graphics.fillStyle(this.darkenColor(baseColor, 0.5), 1);
+        graphics.fillEllipse(x, y, radius * 2, radius * 1.4);
+
+        // Draw faceted faces as triangular wedges from center
+        // Upper row of faces (5 faces)
+        for (let i = 0; i < 5; i++) {
+            const angle1 = (i * 2 * Math.PI) / 5 - Math.PI / 2;
+            const angle2 = ((i + 1) * 2 * Math.PI) / 5 - Math.PI / 2;
+
+            // Shade based on angle (light from top-left)
+            const lightAngle = -Math.PI / 4; // Light coming from top-left
+            const angleDiff = Math.cos(angle1 - lightAngle);
+            const shade = 0.6 + 0.4 * angleDiff;
+            const faceColor = this.lerpColor(this.darkenColor(baseColor, 0.4), baseColor, shade);
+
+            // Calculate face vertices
+            const topY = y - radius * 0.3;
+            const midY = y + radius * 0.1;
+
+            const x1 = x + radius * 0.85 * Math.cos(angle1);
+            const y1 = midY + radius * 0.35 * Math.sin(angle1) * ISO_SCALE_Y;
+
+            const x2 = x + radius * 0.85 * Math.cos(angle2);
+            const y2 = midY + radius * 0.35 * Math.sin(angle2) * ISO_SCALE_Y;
+
+            const xTop = x + radius * 0.3 * Math.cos((angle1 + angle2) / 2);
+            const yTop = topY + radius * 0.15 * Math.sin((angle1 + angle2) / 2) * ISO_SCALE_Y;
+
+            // Draw triangular face
+            graphics.fillStyle(faceColor, 1);
+            graphics.beginPath();
+            graphics.moveTo(xTop, yTop);
+            graphics.lineTo(x1, y1);
+            graphics.lineTo(x2, y2);
+            graphics.closePath();
+            graphics.fillPath();
+
+            // Draw face edges
+            graphics.lineStyle(1, 0xffffff, 0.4);
+            graphics.beginPath();
+            graphics.moveTo(xTop, yTop);
+            graphics.lineTo(x1, y1);
+            graphics.lineTo(x2, y2);
+            graphics.closePath();
+            graphics.strokePath();
         }
 
-        graphics.fillStyle(color, alpha);
-        graphics.beginPath();
-        graphics.moveTo(points[0].x, points[0].y);
-        for (let i = 1; i < points.length; i++) {
-            graphics.lineTo(points[i].x, points[i].y);
+        // Lower row of faces (5 faces, offset)
+        for (let i = 0; i < 5; i++) {
+            const angle1 = ((i + 0.5) * 2 * Math.PI) / 5 - Math.PI / 2;
+            const angle2 = ((i + 1.5) * 2 * Math.PI) / 5 - Math.PI / 2;
+
+            // Shade based on angle (darker for lower faces)
+            const lightAngle = -Math.PI / 4;
+            const angleDiff = Math.cos(angle1 - lightAngle);
+            const shade = 0.3 + 0.35 * angleDiff;
+            const faceColor = this.lerpColor(this.darkenColor(baseColor, 0.3), this.darkenColor(baseColor, 0.7), shade);
+
+            // Calculate face vertices
+            const midY = y + radius * 0.1;
+            const botY = y + radius * 0.5;
+
+            const x1 = x + radius * 0.85 * Math.cos(angle1);
+            const y1 = midY + radius * 0.35 * Math.sin(angle1) * ISO_SCALE_Y;
+
+            const x2 = x + radius * 0.85 * Math.cos(angle2);
+            const y2 = midY + radius * 0.35 * Math.sin(angle2) * ISO_SCALE_Y;
+
+            const xBot = x + radius * 0.4 * Math.cos((angle1 + angle2) / 2);
+            const yBot = botY + radius * 0.2 * Math.sin((angle1 + angle2) / 2) * ISO_SCALE_Y;
+
+            // Draw triangular face
+            graphics.fillStyle(faceColor, 1);
+            graphics.beginPath();
+            graphics.moveTo(x1, y1);
+            graphics.lineTo(xBot, yBot);
+            graphics.lineTo(x2, y2);
+            graphics.closePath();
+            graphics.fillPath();
+
+            // Draw face edges
+            graphics.lineStyle(1, 0xffffff, 0.25);
+            graphics.beginPath();
+            graphics.moveTo(x1, y1);
+            graphics.lineTo(xBot, yBot);
+            graphics.lineTo(x2, y2);
+            graphics.closePath();
+            graphics.strokePath();
         }
-        graphics.closePath();
-        graphics.fillPath();
 
-        // Stroke
-        graphics.lineStyle(2, 0xffffff, 0.8);
-        graphics.beginPath();
-        graphics.moveTo(points[0].x, points[0].y);
-        for (let i = 1; i < points.length; i++) {
-            graphics.lineTo(points[i].x, points[i].y);
-        }
-        graphics.closePath();
-        graphics.strokePath();
-    }
-
-    /**
-     * Draw the sides of a 3D decagon
-     */
-    private drawDecagonSides(
-        graphics: Phaser.GameObjects.Graphics,
-        x: number,
-        y: number,
-        radius: number,
-        height: number,
-        color: number
-    ): void {
-        const sides = 10;
-        const halfHeight = height / 2;
-
-        // Draw visible side faces
-        for (let i = 0; i < sides; i++) {
-            const angle1 = (i * 2 * Math.PI) / sides - Math.PI / 2;
-            const angle2 = ((i + 1) * 2 * Math.PI) / sides - Math.PI / 2;
-
-            // Only draw front-facing sides (bottom half of the decagon)
-            if (Math.sin(angle1) > -0.3 || Math.sin(angle2) > -0.3) {
-                const x1 = x + radius * Math.cos(angle1);
-                const y1Top = y - halfHeight + radius * Math.sin(angle1) * ISO_SCALE_Y;
-                const y1Bot = y + halfHeight + radius * Math.sin(angle1) * ISO_SCALE_Y;
-
-                const x2 = x + radius * Math.cos(angle2);
-                const y2Top = y - halfHeight + radius * Math.sin(angle2) * ISO_SCALE_Y;
-                const y2Bot = y + halfHeight + radius * Math.sin(angle2) * ISO_SCALE_Y;
-
-                // Shade based on angle
-                const shade = 0.5 + 0.5 * Math.cos(angle1);
-                const faceColor = this.lerpColor(this.darkenColor(color, 0.5), color, shade);
-
-                graphics.fillStyle(faceColor, 1);
-                graphics.beginPath();
-                graphics.moveTo(x1, y1Top);
-                graphics.lineTo(x2, y2Top);
-                graphics.lineTo(x2, y2Bot);
-                graphics.lineTo(x1, y1Bot);
-                graphics.closePath();
-                graphics.fillPath();
-
-                // Edge lines
-                graphics.lineStyle(1, 0xffffff, 0.3);
-                graphics.beginPath();
-                graphics.moveTo(x1, y1Top);
-                graphics.lineTo(x1, y1Bot);
-                graphics.strokePath();
-            }
-        }
+        // Draw ball outline
+        graphics.lineStyle(2, 0xffffff, 0.6);
+        graphics.strokeEllipse(x, y, radius * 2, radius * 1.4);
     }
 
     /**
@@ -462,22 +470,12 @@ export class NeuralNetworkManager {
         const radius = this.getNeuronRadius(neuron);
         const color = this.getNeuronColor(neuron);
 
-        // Create glow for special neurons
+        // Create static glow for special neurons (no animation)
         let glow: Phaser.GameObjects.Graphics | undefined;
         if (neuron.type === NeuronType.CORE || neuron.type === NeuronType.ENTRY) {
             glow = this.scene.add.graphics();
             glow.setDepth(DEPTH.NEURON - 1);
             this.drawOctagon(glow, isoPos.x, isoPos.y, radius + 12, color, 0.3, color, 0, 0);
-
-            // Pulse animation
-            this.scene.tweens.add({
-                targets: glow,
-                scale: { from: 1, to: 1.3 },
-                alpha: { from: 0.3, to: 0.1 },
-                duration: 1000,
-                yoyo: true,
-                repeat: -1,
-            });
         }
 
         // Main octagon shape
@@ -688,19 +686,12 @@ export class NeuralNetworkManager {
             const isoPos = this.toIsometric(neuron.x, neuron.y);
             const radius = this.getNeuronRadius(neuron);
 
-            // Create an invisible hit area
+            // Create an invisible hit area (above explorer so it's always clickable)
             const hitArea = this.scene.add.circle(isoPos.x, isoPos.y, radius, 0x000000, 0);
-            hitArea.setDepth(DEPTH.NEURON + 1);
+            hitArea.setDepth(DEPTH.EXPLORER + 10);
             hitArea.setInteractive({ useHandCursor: true });
 
-            hitArea.on("pointerover", () => {
-                sprite.shape.setScale(1.15);
-            });
-
-            hitArea.on("pointerout", () => {
-                sprite.shape.setScale(1);
-            });
-
+            // Click handler only - no hover scaling to prevent visual movement
             hitArea.on("pointerdown", () => {
                 EventBus.emit("neuron-clicked", neuronId);
             });

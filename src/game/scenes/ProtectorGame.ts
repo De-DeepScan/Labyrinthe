@@ -96,6 +96,9 @@ export default class ProtectorGame extends Scene {
         // Synapse activated
         EventBus.on("network-synapse-activated", this.onSynapseActivated, this);
 
+        // Synapse deactivated (when AI catches explorer)
+        EventBus.on("network-synapse-deactivated", this.onSynapseDeactivated, this);
+
         // Game won
         EventBus.on("network-game-won", this.onGameWon, this);
     }
@@ -199,10 +202,11 @@ export default class ProtectorGame extends Scene {
             };
         }
 
-        // Setup drag to pan
+        // Setup drag to pan (middle or right click only, NOT left click)
         this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
-            // Only start drag with middle mouse button or right click
-            if (pointer.middleButtonDown() || pointer.rightButtonDown()) {
+            // pointer.button: 0 = left, 1 = middle, 2 = right
+            // Only allow drag with middle (1) or right (2) button
+            if (pointer.button === 1 || pointer.button === 2) {
                 this.isDragging = true;
                 this.dragStartX = pointer.x;
                 this.dragStartY = pointer.y;
@@ -467,6 +471,49 @@ export default class ProtectorGame extends Scene {
     }
 
     /**
+     * Handle synapse deactivated (when AI catches explorer)
+     */
+    private onSynapseDeactivated(data: { synapseId: string }): void {
+        if (!this.networkData || !this.networkManager) return;
+
+        const synapse = this.networkData.synapses[data.synapseId];
+        if (synapse) {
+            synapse.state = SynapseState.DORMANT;
+            this.networkManager.updateSynapseState(data.synapseId, SynapseState.DORMANT);
+
+            // Also deactivate the neurons connected by this synapse (except entry/core)
+            const fromNeuron = this.networkData.neurons[synapse.fromNeuronId];
+            const toNeuron = this.networkData.neurons[synapse.toNeuronId];
+
+            if (fromNeuron && fromNeuron.type !== NeuronType.ENTRY && fromNeuron.type !== NeuronType.CORE) {
+                // Check if this neuron has any other active connections
+                const hasOtherActiveConnections = Object.values(this.networkData.synapses).some(
+                    s => s.id !== synapse.id &&
+                         s.state === SynapseState.ACTIVE &&
+                         (s.fromNeuronId === synapse.fromNeuronId || s.toNeuronId === synapse.fromNeuronId)
+                );
+                if (!hasOtherActiveConnections) {
+                    fromNeuron.isActivated = false;
+                    this.networkManager.updateNeuronState(synapse.fromNeuronId);
+                }
+            }
+
+            if (toNeuron && toNeuron.type !== NeuronType.ENTRY && toNeuron.type !== NeuronType.CORE) {
+                // Check if this neuron has any other active connections
+                const hasOtherActiveConnections = Object.values(this.networkData.synapses).some(
+                    s => s.id !== synapse.id &&
+                         s.state === SynapseState.ACTIVE &&
+                         (s.fromNeuronId === synapse.toNeuronId || s.toNeuronId === synapse.toNeuronId)
+                );
+                if (!hasOtherActiveConnections) {
+                    toNeuron.isActivated = false;
+                    this.networkManager.updateNeuronState(synapse.toNeuronId);
+                }
+            }
+        }
+    }
+
+    /**
      * Handle AI hacking a neuron (unblocking it)
      */
     private onNeuronHacked(neuronId: string): void {
@@ -643,6 +690,7 @@ export default class ProtectorGame extends Scene {
         EventBus.off("network-data-received", this.onNetworkReceived, this);
         EventBus.off("network-explorer-moved", this.onExplorerMoved, this);
         EventBus.off("network-synapse-activated", this.onSynapseActivated, this);
+        EventBus.off("network-synapse-deactivated", this.onSynapseDeactivated, this);
         EventBus.off("network-game-won", this.onGameWon, this);
 
         this.networkManager?.destroy();

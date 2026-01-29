@@ -19,12 +19,15 @@ export class PuzzleManager {
     private currentPuzzle: PuzzleState | null = null;
 
     private container?: Phaser.GameObjects.Container;
+    private overlay?: Phaser.GameObjects.Rectangle;
     private circleSprites: Map<number, CircleSprite> = new Map();
     private connectionGraphics?: Phaser.GameObjects.Graphics;
     private selectedCircle: number | null = null;
 
     private titleText?: Phaser.GameObjects.Text;
     private hintText?: Phaser.GameObjects.Text;
+    private closeButtonBg?: Phaser.GameObjects.Arc;
+    private closeButtonHitArea?: Phaser.GameObjects.Arc;
 
     // Callbacks
     private onCompleteCallback?: (synapseId: string) => void;
@@ -147,15 +150,18 @@ export class PuzzleManager {
         this.container = this.scene.add.container(centerX, centerY);
         this.container.setDepth(DEPTH.PUZZLE_BG);
 
-        // Background overlay
-        const overlay = this.scene.add.rectangle(
+        // Fix the puzzle UI to the screen (not affected by camera scroll)
+        this.container.setScrollFactor(0);
+
+        // Background overlay (stored as reference for proper cleanup)
+        this.overlay = this.scene.add.rectangle(
             0, 0,
             this.scene.cameras.main.width * 2,
             this.scene.cameras.main.height * 2,
             0x000000, 0.7
         );
-        overlay.setInteractive();
-        this.container.add(overlay);
+        this.overlay.setInteractive();
+        this.container.add(this.overlay);
 
         // Main panel
         const panel = this.scene.add.rectangle(0, 0, 500, 450, 0x1a1a2e);
@@ -218,6 +224,9 @@ export class PuzzleManager {
     private createCircleSprites(): void {
         if (!this.currentPuzzle || !this.container) return;
 
+        const centerX = this.scene.cameras.main.width / 2;
+        const centerY = this.scene.cameras.main.height / 2;
+
         for (const circle of this.currentPuzzle.circles) {
             const color = this.getCircleColor(circle.state);
 
@@ -228,7 +237,6 @@ export class PuzzleManager {
                 color
             );
             circleSprite.setStrokeStyle(3, 0xffffff, 0.5);
-            circleSprite.setInteractive({ useHandCursor: true });
 
             // Circle number
             const text = this.scene.add.text(
@@ -245,20 +253,35 @@ export class PuzzleManager {
             this.container.add([circleSprite, text]);
             this.circleSprites.set(circle.id, { circle: circleSprite, text });
 
+            // Create separate hit area fixed to screen for proper input handling
+            const hitArea = this.scene.add.circle(
+                centerX + circle.x,
+                centerY + circle.y + 20,
+                PUZZLE_CONFIG.CIRCLE_RADIUS,
+                0x000000,
+                0 // Invisible
+            );
+            hitArea.setScrollFactor(0);
+            hitArea.setDepth(DEPTH.PUZZLE_ELEMENTS + 10);
+            hitArea.setInteractive({ useHandCursor: true });
+
             // Interactions
-            circleSprite.on("pointerover", () => {
+            hitArea.on("pointerover", () => {
                 circleSprite.setScale(1.1);
             });
 
-            circleSprite.on("pointerout", () => {
+            hitArea.on("pointerout", () => {
                 if (this.selectedCircle !== circle.id) {
                     circleSprite.setScale(1);
                 }
             });
 
-            circleSprite.on("pointerdown", () => {
+            hitArea.on("pointerdown", () => {
                 this.handleCircleClick(circle.id);
             });
+
+            // Store hit area reference for cleanup
+            (circleSprite as Phaser.GameObjects.Arc & { hitArea?: Phaser.GameObjects.Arc }).hitArea = hitArea;
         }
     }
 
@@ -475,23 +498,37 @@ export class PuzzleManager {
     private createCloseButton(): void {
         if (!this.container) return;
 
+        const centerX = this.scene.cameras.main.width / 2;
+        const centerY = this.scene.cameras.main.height / 2;
+
         const closeBtn = this.scene.add.container(220, -190);
 
-        const bg = this.scene.add.circle(0, 0, 20, 0xe53e3e);
+        // Store reference for proper cleanup
+        this.closeButtonBg = this.scene.add.circle(0, 0, 20, 0xe53e3e);
         const text = this.scene.add.text(0, 0, "X", {
             fontFamily: "Arial Black",
             fontSize: "20px",
             color: "#ffffff",
         }).setOrigin(0.5);
 
-        closeBtn.add([bg, text]);
+        closeBtn.add([this.closeButtonBg, text]);
         this.container.add(closeBtn);
 
-        bg.setInteractive({ useHandCursor: true });
+        // Create separate hit area for close button fixed to screen
+        this.closeButtonHitArea = this.scene.add.circle(
+            centerX + 220,
+            centerY - 190,
+            20,
+            0x000000,
+            0 // Invisible
+        );
+        this.closeButtonHitArea.setScrollFactor(0);
+        this.closeButtonHitArea.setDepth(DEPTH.PUZZLE_ELEMENTS + 10);
+        this.closeButtonHitArea.setInteractive({ useHandCursor: true });
 
-        bg.on("pointerover", () => bg.setScale(1.1));
-        bg.on("pointerout", () => bg.setScale(1));
-        bg.on("pointerdown", () => {
+        this.closeButtonHitArea.on("pointerover", () => this.closeButtonBg?.setScale(1.1));
+        this.closeButtonHitArea.on("pointerout", () => this.closeButtonBg?.setScale(1));
+        this.closeButtonHitArea.on("pointerdown", () => {
             const synapseId = this.currentPuzzle?.synapseId || "";
             this.hidePuzzleUI();
             EventBus.emit("puzzle-cancelled", synapseId);
@@ -521,12 +558,51 @@ export class PuzzleManager {
      * Cleanup puzzle resources
      */
     private cleanup(): void {
+        // Remove interactivity from all elements BEFORE destroying
+        // This is critical to prevent input system issues in Phaser
+
+        // Remove interactivity from overlay
+        if (this.overlay) {
+            this.overlay.removeInteractive();
+            this.overlay = undefined;
+        }
+
+        // Remove interactivity from close button
+        if (this.closeButtonBg) {
+            this.closeButtonBg.removeInteractive();
+            this.closeButtonBg = undefined;
+        }
+
+        // Remove interactivity from close button hit area
+        if (this.closeButtonHitArea) {
+            this.closeButtonHitArea.removeInteractive();
+            this.closeButtonHitArea.destroy();
+            this.closeButtonHitArea = undefined;
+        }
+
+        // Remove interactivity from all circle sprites and their hit areas
+        for (const [, sprite] of this.circleSprites) {
+            const hitArea = (sprite.circle as Phaser.GameObjects.Arc & { hitArea?: Phaser.GameObjects.Arc }).hitArea;
+            if (hitArea) {
+                hitArea.removeInteractive();
+                hitArea.destroy();
+            }
+            sprite.circle.removeInteractive();
+        }
         this.circleSprites.clear();
+
+        // Destroy graphics and container
         this.connectionGraphics?.destroy();
+        this.connectionGraphics = undefined;
+
+        // Destroy the container (this also destroys all children)
         this.container?.destroy();
         this.container = undefined;
+
         this.currentPuzzle = null;
         this.selectedCircle = null;
+        this.titleText = undefined;
+        this.hintText = undefined;
     }
 
     getCurrentPuzzle(): PuzzleState | null {

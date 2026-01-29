@@ -704,6 +704,11 @@ export class AIManager {
         });
 
         this.onCatchExplorerCallback?.();
+
+        // Reset AI to spawn point after catching explorer
+        this.scene.time.delayedCall(1500, () => {
+            this.resetToSpawn();
+        });
     }
 
     /**

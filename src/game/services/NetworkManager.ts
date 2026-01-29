@@ -88,6 +88,10 @@ export class NetworkManager {
                 EventBus.emit("network-synapse-activated", message.data);
                 break;
 
+            case "synapse-deactivated":
+                EventBus.emit("network-synapse-deactivated", message.data);
+                break;
+
             case "synapse-blocked":
                 EventBus.emit("network-synapse-blocked", message.data);
                 break;
@@ -171,6 +175,13 @@ export class NetworkManager {
      */
     sendSynapseActivated(synapseId: string): void {
         this.send("synapse-activated", { synapseId });
+    }
+
+    /**
+     * Send synapse deactivation (when AI catches explorer)
+     */
+    sendSynapseDeactivated(synapseId: string): void {
+        this.send("synapse-deactivated", { synapseId });
     }
 
     /**
