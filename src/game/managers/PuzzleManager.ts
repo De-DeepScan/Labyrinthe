@@ -63,8 +63,8 @@ export class PuzzleManager {
     private onCloseCallback?: () => void;
 
     // Configuration
-    private readonly CELL_SIZE = 50;
-    private readonly GRID_SIZE = 6; // 6x6 = 36 cells (more manageable)
+    private readonly CELL_SIZE = 60;
+    private readonly GRID_SIZE = 4; // 4x4 = 16 cells (simplified)
     private readonly COLORS = {
         CELL_BG: 0x2d3748,
         CELL_BORDER: 0x4a5568,
@@ -117,8 +117,8 @@ export class PuzzleManager {
         const solution = this.generateHamiltonianPath(gridSize);
 
         // Place checkpoints along the path based on difficulty
-        // More checkpoints = easier puzzle
-        const checkpointCount = difficulty === 1 ? 12 : difficulty === 2 ? 9 : 7;
+        // More checkpoints = easier puzzle (adjusted for 4x4 grid)
+        const checkpointCount = difficulty === 1 ? 6 : difficulty === 2 ? 5 : 4;
         const checkpoints = this.placeCheckpoints(solution, checkpointCount, maxNumber);
 
         // Mark checkpoints in the grid
