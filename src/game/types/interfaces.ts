@@ -174,7 +174,9 @@ export type NetworkMessageType =
     | "puzzle-failed"
     | "game-won"
     | "game-lost"
-    | "game-restart";
+    | "game-restart"
+    | "dilemma-triggered"
+    | "dilemma-choice";
 
 export interface NetworkMessage {
     type: NetworkMessageType;

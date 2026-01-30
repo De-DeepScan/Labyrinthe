@@ -136,6 +136,14 @@ export class NetworkManager {
                 EventBus.emit("network-game-restart", message.data);
                 break;
 
+            case "dilemma-triggered":
+                EventBus.emit("network-dilemma-triggered", message.data);
+                break;
+
+            case "dilemma-choice":
+                EventBus.emit("network-dilemma-choice", message.data);
+                break;
+
             default:
                 console.log("Unknown message type:", message.type);
         }
@@ -263,6 +271,20 @@ export class NetworkManager {
      */
     sendGameRestart(): void {
         this.send("game-restart", {});
+    }
+
+    /**
+     * Send dilemma triggered (when AI catches explorer)
+     */
+    sendDilemmaTriggered(data: { dilemmaId: string; neuronId: string }): void {
+        this.send("dilemma-triggered", data);
+    }
+
+    /**
+     * Send dilemma choice made
+     */
+    sendDilemmaChoice(data: { dilemmaId: string; choiceId: string }): void {
+        this.send("dilemma-choice", data);
     }
 
     /**

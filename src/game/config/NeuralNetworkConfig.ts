@@ -1,4 +1,5 @@
 // Configuration for the Neural Network game
+// Cyberpunk style colors
 
 export const NEURAL_NETWORK_CONFIG = {
     // Network generation
@@ -20,27 +21,27 @@ export const NEURAL_NETWORK_CONFIG = {
     SYNAPSE_WIDTH: 4,
     SYNAPSE_WIDTH_ACTIVE: 6,
 
-    // Colors
+    // Cyberpunk Colors
     COLORS: {
-        NEURON_NORMAL: 0x4a5568,
-        NEURON_ACTIVATED: 0x48bb78,
-        NEURON_ENTRY: 0x4299e1,
-        NEURON_CORE: 0xed8936,
-        NEURON_BLOCKED: 0xe53e3e,
+        NEURON_NORMAL: 0x1a3a4a,      // Dark cyan-blue
+        NEURON_ACTIVATED: 0x00d4aa,   // Bright cyan
+        NEURON_ENTRY: 0x00d4aa,       // Cyan (entry point)
+        NEURON_CORE: 0xff9933,        // Orange (objective)
+        NEURON_BLOCKED: 0xff3366,     // Red (blocked)
 
-        SYNAPSE_DORMANT: 0x4a5568,
-        SYNAPSE_ACTIVE: 0x48bb78,
-        SYNAPSE_SOLVING: 0xecc94b,
-        SYNAPSE_BLOCKED: 0xe53e3e,
-        SYNAPSE_AI_PATH: 0x9f7aea,
+        SYNAPSE_DORMANT: 0x0a4a5a,    // Very dark cyan
+        SYNAPSE_ACTIVE: 0x00d4aa,     // Bright cyan
+        SYNAPSE_SOLVING: 0xffcc00,    // Yellow (solving)
+        SYNAPSE_BLOCKED: 0xff3366,    // Red (blocked)
+        SYNAPSE_AI_PATH: 0xff3366,    // Red (AI path)
 
-        AI_ENTITY: 0xe53e3e,
-        AI_PATH: 0xfc8181,
+        AI_ENTITY: 0xff3366,          // Red (AI)
+        AI_PATH: 0xff6688,            // Light red
 
-        EXPLORER: 0x4299e1,
+        EXPLORER: 0x00d4aa,           // Cyan (explorer)
 
-        FOG: 0x1a202c,
-        BACKGROUND: 0x1a1a2e,
+        FOG: 0x000408,                // Very dark blue
+        BACKGROUND: 0x000408,         // Dark background
     },
 
     // Explorer
@@ -74,12 +75,13 @@ export const PUZZLE_CONFIG = {
     CIRCLE_RADIUS: 30,
     CIRCLE_SPACING: 100,
 
+    // Cyberpunk Colors
     COLORS: {
-        OFF: 0x4a5568,
-        WRONG: 0xe53e3e,
-        CORRECT: 0x48bb78,
-        CONNECTION: 0x718096,
-        CONNECTION_ACTIVE: 0x4299e1,
+        OFF: 0x0a1628,           // Dark panel background
+        WRONG: 0xff3366,         // Red
+        CORRECT: 0x00d4aa,       // Cyan
+        CONNECTION: 0x1a4a5a,    // Dark cyan
+        CONNECTION_ACTIVE: 0x00d4aa,  // Bright cyan
     },
 
     // Difficulty affects gate distribution
@@ -107,9 +109,9 @@ export const FIREWALL_CONFIG = {
     BUTTON_SPACING: 20,
 
     BUTTON_COLORS: {
-        red: { normal: 0xe53e3e, flash: 0xfc8181 },
-        blue: { normal: 0x4299e1, flash: 0x90cdf4 },
-        green: { normal: 0x48bb78, flash: 0x9ae6b4 },
-        yellow: { normal: 0xecc94b, flash: 0xfaf089 },
+        red: { normal: 0xff3366, flash: 0xff6699 },      // Cyberpunk red
+        blue: { normal: 0x00d4aa, flash: 0x66ffdd },     // Cyberpunk cyan
+        green: { normal: 0x00ff88, flash: 0x88ffbb },    // Neon green
+        yellow: { normal: 0xff9933, flash: 0xffbb66 },   // Cyberpunk orange
     },
 } as const;

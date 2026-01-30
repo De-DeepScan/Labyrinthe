@@ -5,10 +5,13 @@ import { NeuralNetworkManager } from "../managers/NeuralNetworkManager";
 import { AIManager } from "../managers/AIManager";
 import { TerminalManager } from "../managers/TerminalManager";
 import { ResourceManager } from "../managers/ResourceManager";
+import { DilemmaManager } from "../managers/DilemmaManager";
+import type { Dilemma } from "../managers/DilemmaManager";
 import { NetworkManager } from "../services/NetworkManager";
 import { GameConfig } from "../config/GameConfig";
 import { RESOURCE_CONFIG } from "../config/NeuralNetworkConfig";
 import { EventBus } from "../EventBus";
+import { CYBER_COLORS } from "../config/CyberStyles";
 
 /**
  * Protector's game scene - defend explorer from AI
@@ -19,6 +22,7 @@ export default class ProtectorGame extends Scene {
     private aiManager?: AIManager;
     private terminalManager!: TerminalManager;
     private resourceManager!: ResourceManager;
+    private dilemmaManager!: DilemmaManager;
     private networkService!: NetworkManager;
 
     private explorerPath: string[] = [];
@@ -51,11 +55,19 @@ export default class ProtectorGame extends Scene {
             this.showMessage("IA ralentie !");
         });
 
+        // Create dilemma manager (read-only mode - choice is made on DilemmaScreen)
+        this.dilemmaManager = new DilemmaManager(this, true);
+
         // Create waiting UI
         this.createWaitingUI();
 
         // Setup network listeners
         this.setupNetworkListeners();
+
+        // Setup dilemma listeners
+        EventBus.on("ai-caught-explorer-dilemma", this.onAICaughtExplorerDilemma, this);
+        EventBus.on("dilemma-choice-made", this.onDilemmaChoiceMade, this);
+        EventBus.on("network-dilemma-choice", this.onDilemmaChoiceMade, this);
 
         EventBus.emit("current-scene-ready", this);
     }
@@ -64,13 +76,29 @@ export default class ProtectorGame extends Scene {
      * Create waiting UI while waiting for network data
      */
     private createWaitingUI(): void {
+        // Dark background
+        this.cameras.main.setBackgroundColor("#000408");
+
         const centerX = GameConfig.SCREEN_WIDTH / 2;
         const centerY = GameConfig.SCREEN_HEIGHT / 2;
 
-        this.waitingText = this.add.text(centerX, centerY, "En attente de l'Explorateur...", {
-            fontFamily: "Arial",
-            fontSize: "32px",
-            color: "#ffffff",
+        // Cyber grid
+        const gridGraphics = this.add.graphics();
+        gridGraphics.lineStyle(1, CYBER_COLORS.ORANGE, 0.03);
+        for (let x = 0; x < GameConfig.SCREEN_WIDTH; x += 50) {
+            gridGraphics.moveTo(x, 0);
+            gridGraphics.lineTo(x, GameConfig.SCREEN_HEIGHT);
+        }
+        for (let y = 0; y < GameConfig.SCREEN_HEIGHT; y += 50) {
+            gridGraphics.moveTo(0, y);
+            gridGraphics.lineTo(GameConfig.SCREEN_WIDTH, y);
+        }
+        gridGraphics.strokePath();
+
+        this.waitingText = this.add.text(centerX, centerY, "[ EN ATTENTE DE L'EXPLORATEUR ]", {
+            fontFamily: "Courier New, monospace",
+            fontSize: "28px",
+            color: CYBER_COLORS.TEXT_ORANGE,
         }).setOrigin(0.5);
 
         // Pulsing animation
@@ -81,6 +109,23 @@ export default class ProtectorGame extends Scene {
             yoyo: true,
             repeat: -1,
         });
+
+        // Animated dots
+        const dotsContainer = this.add.container(centerX, centerY + 50);
+        for (let i = 0; i < 3; i++) {
+            const dot = this.add.circle(i * 20 - 20, 0, 4, CYBER_COLORS.ORANGE, 0.3);
+            dotsContainer.add(dot);
+
+            this.tweens.add({
+                targets: dot,
+                alpha: { from: 0.3, to: 1 },
+                scale: { from: 1, to: 1.5 },
+                duration: 600,
+                delay: i * 200,
+                yoyo: true,
+                repeat: -1,
+            });
+        }
     }
 
     /**
@@ -240,27 +285,44 @@ export default class ProtectorGame extends Scene {
      * Create UI elements (fixed to camera)
      */
     private createUI(): void {
+        // Create cyber panel for title
+        const titlePanel = this.add.graphics();
+        titlePanel.fillStyle(CYBER_COLORS.BG_PANEL, 0.9);
+        titlePanel.fillRect(10, 10, 280, 90);
+        titlePanel.lineStyle(2, CYBER_COLORS.ORANGE, 0.8);
+        titlePanel.strokeRect(10, 10, 280, 90);
+        // Corner decorations
+        titlePanel.lineStyle(3, CYBER_COLORS.ORANGE, 1);
+        titlePanel.moveTo(10, 25);
+        titlePanel.lineTo(10, 10);
+        titlePanel.lineTo(25, 10);
+        titlePanel.moveTo(275, 10);
+        titlePanel.lineTo(290, 10);
+        titlePanel.lineTo(290, 25);
+        titlePanel.strokePath();
+        titlePanel.setScrollFactor(0);
+
         // Title
         const title = this.add.text(20, 20, "PROTECTEUR", {
-            fontFamily: "Arial Black",
+            fontFamily: "Courier New, monospace",
             fontSize: "24px",
-            color: "#ed8936",
+            color: CYBER_COLORS.TEXT_ORANGE,
         });
         title.setScrollFactor(0);
 
         // Instructions
-        const instructions = this.add.text(20, 60, "Détruisez les neurones pour bloquer le chemin de l'IA", {
-            fontFamily: "Arial",
-            fontSize: "16px",
-            color: "#a0aec0",
+        const instructions = this.add.text(20, 55, "Détruisez les neurones pour bloquer l'IA", {
+            fontFamily: "Courier New, monospace",
+            fontSize: "13px",
+            color: CYBER_COLORS.TEXT_WHITE,
         });
         instructions.setScrollFactor(0);
 
         // Camera controls hint
-        const hint = this.add.text(20, 85, "Clic droit + glisser ou flèches/WASD pour déplacer la vue", {
-            fontFamily: "Arial",
-            fontSize: "12px",
-            color: "#718096",
+        const hint = this.add.text(20, 78, "Clic droit + glisser / WASD pour la vue", {
+            fontFamily: "Courier New, monospace",
+            fontSize: "11px",
+            color: CYBER_COLORS.TEXT_GRAY,
         });
         hint.setScrollFactor(0);
 
@@ -275,23 +337,40 @@ export default class ProtectorGame extends Scene {
      * Create resource UI (fixed to camera)
      */
     private createResourceUI(): void {
-        const x = GameConfig.SCREEN_WIDTH - 220;
+        const x = GameConfig.SCREEN_WIDTH - 230;
         const y = 20;
 
-        // Background
-        const bg = this.add.rectangle(x + 100, y + 25, 200, 50, 0x2d3748).setStrokeStyle(2, 0x4a5568);
-        bg.setScrollFactor(0);
+        // Cyber panel background
+        const panel = this.add.graphics();
+        panel.fillStyle(CYBER_COLORS.BG_PANEL, 0.9);
+        panel.fillRect(x - 10, y - 5, 220, 60);
+        panel.lineStyle(2, CYBER_COLORS.CYAN, 0.8);
+        panel.strokeRect(x - 10, y - 5, 220, 60);
+        // Corner decorations
+        panel.lineStyle(3, CYBER_COLORS.CYAN, 1);
+        panel.moveTo(x + 195, y - 5);
+        panel.lineTo(x + 210, y - 5);
+        panel.lineTo(x + 210, y + 10);
+        panel.moveTo(x + 210, y + 40);
+        panel.lineTo(x + 210, y + 55);
+        panel.lineTo(x + 195, y + 55);
+        panel.strokePath();
+        panel.setScrollFactor(0);
 
         // Label
-        const label = this.add.text(x, y, "Ressources", {
-            fontFamily: "Arial",
+        const label = this.add.text(x, y, "RESSOURCES", {
+            fontFamily: "Courier New, monospace",
             fontSize: "14px",
-            color: "#a0aec0",
+            color: CYBER_COLORS.TEXT_CYAN,
         });
         label.setScrollFactor(0);
 
         // Resource bar background
-        const barBg = this.add.rectangle(x + 100, y + 35, 180, 16, 0x1a202c);
+        const barBg = this.add.graphics();
+        barBg.fillStyle(0x0a1628, 1);
+        barBg.fillRect(x, y + 22, 190, 20);
+        barBg.lineStyle(1, CYBER_COLORS.CYAN, 0.5);
+        barBg.strokeRect(x, y + 22, 190, 20);
         barBg.setScrollFactor(0);
 
         // Resource bar fill
@@ -300,10 +379,10 @@ export default class ProtectorGame extends Scene {
         this.updateResourceBar(this.resourceManager.getPercentage());
 
         // Resource text
-        this.resourceText = this.add.text(x + 100, y + 35, "", {
-            fontFamily: "Arial",
+        this.resourceText = this.add.text(x + 95, y + 32, "", {
+            fontFamily: "Courier New, monospace",
             fontSize: "12px",
-            color: "#ffffff",
+            color: CYBER_COLORS.TEXT_WHITE,
         }).setOrigin(0.5);
         this.resourceText.setScrollFactor(0);
 
@@ -321,15 +400,15 @@ export default class ProtectorGame extends Scene {
 
         this.resourceBar.clear();
 
-        // Green to red gradient based on resources
-        const color = percentage > 0.5 ? 0x48bb78 : percentage > 0.25 ? 0xecc94b : 0xe53e3e;
+        // Cyberpunk colors: cyan to orange to red based on resources
+        const color = percentage > 0.5 ? CYBER_COLORS.CYAN : percentage > 0.25 ? CYBER_COLORS.ORANGE : CYBER_COLORS.RED;
 
-        const x = GameConfig.SCREEN_WIDTH - 220;
+        const x = GameConfig.SCREEN_WIDTH - 230;
         const y = 20;
-        const width = 180 * percentage;
+        const width = 186 * percentage;
 
         this.resourceBar.fillStyle(color);
-        this.resourceBar.fillRect(x + 10, y + 27, width, 16);
+        this.resourceBar.fillRect(x + 2, y + 24, width, 16);
     }
 
     /**
@@ -353,30 +432,85 @@ export default class ProtectorGame extends Scene {
         this.firewallButton.setScrollFactor(0);
         this.firewallButton.setDepth(100); // Ensure button is on top
 
-        const bg = this.add.rectangle(0, 0, 180, 45, 0x00aa00);
-        bg.setStrokeStyle(2, 0x00ff00);
+        // Cyber button background
+        const bgGraphics = this.add.graphics();
+        bgGraphics.fillStyle(CYBER_COLORS.BG_PANEL, 1);
+        bgGraphics.fillRect(-90, -25, 180, 50);
+        bgGraphics.lineStyle(2, CYBER_COLORS.GREEN, 1);
+        bgGraphics.strokeRect(-90, -25, 180, 50);
+        // Corner decorations
+        bgGraphics.lineStyle(3, CYBER_COLORS.GREEN, 1);
+        bgGraphics.moveTo(-90, -15);
+        bgGraphics.lineTo(-90, -25);
+        bgGraphics.lineTo(-80, -25);
+        bgGraphics.moveTo(80, -25);
+        bgGraphics.lineTo(90, -25);
+        bgGraphics.lineTo(90, -15);
+        bgGraphics.moveTo(-90, 15);
+        bgGraphics.lineTo(-90, 25);
+        bgGraphics.lineTo(-80, 25);
+        bgGraphics.moveTo(80, 25);
+        bgGraphics.lineTo(90, 25);
+        bgGraphics.lineTo(90, 15);
+        bgGraphics.strokePath();
 
-        const text = this.add.text(0, 0, "TERMINAL", {
+        const text = this.add.text(0, 0, "[ TERMINAL ]", {
             fontFamily: "Courier New, monospace",
             fontSize: "16px",
-            color: "#00ff00",
+            color: CYBER_COLORS.TEXT_GREEN,
         }).setOrigin(0.5);
 
-        this.firewallButton.add([bg, text]);
+        // Hit area for interaction
+        const hitArea = this.add.rectangle(0, 0, 180, 50, 0x000000, 0);
+        hitArea.setInteractive({ useHandCursor: true });
 
-        // Make the container itself interactive with explicit hit area
-        this.firewallButton.setSize(180, 45);
-        this.firewallButton.setInteractive({ useHandCursor: true });
+        this.firewallButton.add([bgGraphics, text, hitArea]);
 
-        this.firewallButton.on("pointerover", () => {
-            bg.setScale(1.05);
-            text.setScale(1.05);
+        hitArea.on("pointerover", () => {
+            text.setColor(CYBER_COLORS.TEXT_WHITE);
+            bgGraphics.clear();
+            bgGraphics.fillStyle(CYBER_COLORS.GREEN, 0.2);
+            bgGraphics.fillRect(-90, -25, 180, 50);
+            bgGraphics.lineStyle(2, CYBER_COLORS.GREEN, 1);
+            bgGraphics.strokeRect(-90, -25, 180, 50);
+            bgGraphics.lineStyle(3, CYBER_COLORS.GREEN, 1);
+            bgGraphics.moveTo(-90, -15);
+            bgGraphics.lineTo(-90, -25);
+            bgGraphics.lineTo(-80, -25);
+            bgGraphics.moveTo(80, -25);
+            bgGraphics.lineTo(90, -25);
+            bgGraphics.lineTo(90, -15);
+            bgGraphics.moveTo(-90, 15);
+            bgGraphics.lineTo(-90, 25);
+            bgGraphics.lineTo(-80, 25);
+            bgGraphics.moveTo(80, 25);
+            bgGraphics.lineTo(90, 25);
+            bgGraphics.lineTo(90, 15);
+            bgGraphics.strokePath();
         });
-        this.firewallButton.on("pointerout", () => {
-            bg.setScale(1);
-            text.setScale(1);
+        hitArea.on("pointerout", () => {
+            text.setColor(CYBER_COLORS.TEXT_GREEN);
+            bgGraphics.clear();
+            bgGraphics.fillStyle(CYBER_COLORS.BG_PANEL, 1);
+            bgGraphics.fillRect(-90, -25, 180, 50);
+            bgGraphics.lineStyle(2, CYBER_COLORS.GREEN, 1);
+            bgGraphics.strokeRect(-90, -25, 180, 50);
+            bgGraphics.lineStyle(3, CYBER_COLORS.GREEN, 1);
+            bgGraphics.moveTo(-90, -15);
+            bgGraphics.lineTo(-90, -25);
+            bgGraphics.lineTo(-80, -25);
+            bgGraphics.moveTo(80, -25);
+            bgGraphics.lineTo(90, -25);
+            bgGraphics.lineTo(90, -15);
+            bgGraphics.moveTo(-90, 15);
+            bgGraphics.lineTo(-90, 25);
+            bgGraphics.lineTo(-80, 25);
+            bgGraphics.moveTo(80, 25);
+            bgGraphics.lineTo(90, 25);
+            bgGraphics.lineTo(90, 15);
+            bgGraphics.strokePath();
         });
-        this.firewallButton.on("pointerdown", () => {
+        hitArea.on("pointerdown", () => {
             this.aiManager?.pause();
             this.terminalManager.startGame();
         });
@@ -563,27 +697,46 @@ export default class ProtectorGame extends Scene {
     }
 
     /**
-     * Handle AI catching explorer
+     * Handle AI catching explorer - now triggers dilemma
      */
     private onAICaughtExplorer(): void {
+        // This is now handled by onAICaughtExplorerDilemma
+    }
+
+    /**
+     * Handle AI catching explorer with dilemma
+     */
+    private onAICaughtExplorerDilemma(data: { neuronId: string; dilemma: Dilemma }): void {
         // Close the terminal if it's open
         if (this.terminalManager.isActive()) {
             this.terminalManager.hideUI();
         }
 
-        // Show notification
-        this.showPausePopup("IA CONNECTÉE !", "L'Explorateur a été repoussé !");
+        // Send dilemma to all screens via network (DilemmaScreen and ExplorerGame)
+        this.networkService.sendDilemmaTriggered({
+            dilemmaId: data.dilemma.id,
+            neuronId: data.neuronId,
+        });
 
-        // Notify explorer
+        // Show dilemma in read-only mode
+        this.dilemmaManager.showDilemma(data.dilemma);
+    }
+
+    /**
+     * Handle when a dilemma choice is made
+     */
+    private onDilemmaChoiceMade(): void {
+        // Hide the dilemma display
+        this.dilemmaManager.hideDilemma();
+
+        // Resume the game
+        this.aiManager?.resumeAfterDilemma();
+
+        // Notify explorer that dilemma is resolved
         const currentNeuronId = this.aiManager?.getCurrentNeuronId() || "";
         this.networkService.sendAIConnected({
             neuronId: currentNeuronId,
             explorerPushedTo: this.explorerPath[this.explorerPath.length - 2] || this.explorerPath[0],
-        });
-
-        // Reset AI position after delay
-        this.time.delayedCall(2000, () => {
-            this.aiManager?.resetAfterCatch();
         });
     }
 
@@ -650,27 +803,36 @@ export default class ProtectorGame extends Scene {
      * Show a temporary message (fixed to camera)
      */
     private showMessage(text: string): void {
-        const msg = this.add.text(
-            GameConfig.SCREEN_WIDTH / 2,
-            GameConfig.SCREEN_HEIGHT - 100,
-            text,
-            {
-                fontFamily: "Arial",
-                fontSize: "20px",
-                color: "#ffffff",
-                backgroundColor: "#2d3748",
-                padding: { x: 20, y: 10 },
-            }
-        ).setOrigin(0.5);
-        msg.setScrollFactor(0);
+        const centerX = GameConfig.SCREEN_WIDTH / 2;
+        const y = GameConfig.SCREEN_HEIGHT - 100;
 
-        const startY = msg.y;
+        // Create container for message
+        const container = this.add.container(centerX, y);
+        container.setScrollFactor(0);
+
+        // Background panel
+        const bgGraphics = this.add.graphics();
+        const textWidth = text.length * 10 + 40;
+        bgGraphics.fillStyle(CYBER_COLORS.BG_PANEL, 0.95);
+        bgGraphics.fillRect(-textWidth / 2, -20, textWidth, 40);
+        bgGraphics.lineStyle(2, CYBER_COLORS.ORANGE, 0.8);
+        bgGraphics.strokeRect(-textWidth / 2, -20, textWidth, 40);
+
+        const msg = this.add.text(0, 0, text, {
+            fontFamily: "Courier New, monospace",
+            fontSize: "16px",
+            color: CYBER_COLORS.TEXT_ORANGE,
+        }).setOrigin(0.5);
+
+        container.add([bgGraphics, msg]);
+
+        const startY = container.y;
         this.tweens.add({
-            targets: msg,
+            targets: container,
             alpha: 0,
             y: startY - 50,
             duration: 2000,
-            onComplete: () => msg.destroy(),
+            onComplete: () => container.destroy(),
         });
     }
 
@@ -722,6 +884,9 @@ export default class ProtectorGame extends Scene {
         EventBus.off("network-synapse-activated", this.onSynapseActivated, this);
         EventBus.off("network-synapse-deactivated", this.onSynapseDeactivated, this);
         EventBus.off("network-game-won", this.onGameWon, this);
+        EventBus.off("ai-caught-explorer-dilemma", this.onAICaughtExplorerDilemma, this);
+        EventBus.off("dilemma-choice-made", this.onDilemmaChoiceMade, this);
+        EventBus.off("network-dilemma-choice", this.onDilemmaChoiceMade, this);
         EventBus.off("terminal-success");
         EventBus.off("terminal-opened");
         EventBus.off("terminal-closed");
@@ -729,5 +894,6 @@ export default class ProtectorGame extends Scene {
         this.networkManager?.destroy();
         this.aiManager?.destroy();
         this.terminalManager?.destroy();
+        this.dilemmaManager?.destroy();
     }
 }

@@ -5,6 +5,7 @@ import Preloader from "./scenes/Preloader";
 import RoleSelect from "./scenes/RoleSelect";
 import ExplorerGame from "./scenes/ExplorerGame";
 import ProtectorGame from "./scenes/ProtectorGame";
+import DilemmaScreen from "./scenes/DilemmaScreen";
 import Victory from "./scenes/Victory";
 import Defeat from "./scenes/Defeat";
 
@@ -18,7 +19,7 @@ const config: Phaser.Types.Core.GameConfig = {
         mode: Phaser.Scale.FIT,
         autoCenter: Phaser.Scale.CENTER_BOTH,
     },
-    scene: [Boot, Preloader, RoleSelect, ExplorerGame, ProtectorGame, Victory, Defeat],
+    scene: [Boot, Preloader, RoleSelect, ExplorerGame, ProtectorGame, DilemmaScreen, Victory, Defeat],
 };
 
 const StartGame = (parent: string): Phaser.Game => {

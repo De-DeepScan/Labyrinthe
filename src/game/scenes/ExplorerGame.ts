@@ -4,9 +4,11 @@ import { SynapseState, NeuronType } from "../types/interfaces";
 import { NeuralNetworkGenerator } from "../generators/NeuralNetworkGenerator";
 import { NeuralNetworkManager } from "../managers/NeuralNetworkManager";
 import { PuzzleManager } from "../managers/PuzzleManager";
+import { DilemmaManager } from "../managers/DilemmaManager";
 import { NetworkManager } from "../services/NetworkManager";
 import { GameConfig } from "../config/GameConfig";
 import { EventBus } from "../EventBus";
+import { CYBER_COLORS } from "../config/CyberStyles";
 
 /**
  * Explorer's game scene - navigate the neural network by solving puzzles
@@ -15,6 +17,7 @@ export default class ExplorerGame extends Scene {
     private networkData!: NeuralNetworkData;
     private networkManager!: NeuralNetworkManager;
     private puzzleManager!: PuzzleManager;
+    private dilemmaManager!: DilemmaManager;
     private networkService!: NetworkManager;
 
     private currentNeuronId!: string;
@@ -56,6 +59,9 @@ export default class ExplorerGame extends Scene {
         // Create puzzle manager
         this.puzzleManager = new PuzzleManager(this);
         this.setupPuzzleCallbacks();
+
+        // Create dilemma manager (read-only mode - choice is made on DilemmaScreen)
+        this.dilemmaManager = new DilemmaManager(this, true);
 
         // Create UI (fixed to camera)
         this.createUI();
@@ -103,32 +109,57 @@ export default class ExplorerGame extends Scene {
      * Create UI elements (fixed to camera)
      */
     private createUI(): void {
+        // Create cyber panel for title
+        const titlePanel = this.add.graphics();
+        titlePanel.fillStyle(CYBER_COLORS.BG_PANEL, 0.9);
+        titlePanel.fillRect(10, 10, 320, 75);
+        titlePanel.lineStyle(2, CYBER_COLORS.CYAN, 0.8);
+        titlePanel.strokeRect(10, 10, 320, 75);
+        // Corner decorations
+        titlePanel.lineStyle(3, CYBER_COLORS.CYAN, 1);
+        titlePanel.moveTo(10, 25);
+        titlePanel.lineTo(10, 10);
+        titlePanel.lineTo(25, 10);
+        titlePanel.moveTo(315, 10);
+        titlePanel.lineTo(330, 10);
+        titlePanel.lineTo(330, 25);
+        titlePanel.strokePath();
+        titlePanel.setScrollFactor(0);
+
         // Status text
         const title = this.add.text(20, 20, "EXPLORATEUR", {
-            fontFamily: "Arial Black",
+            fontFamily: "Courier New, monospace",
             fontSize: "24px",
-            color: "#4299e1",
+            color: CYBER_COLORS.TEXT_CYAN,
         });
         title.setScrollFactor(0);
 
         // Instructions
         const instructions = this.add.text(
             20,
-            60,
-            "Cliquez sur les neurones adjacents pour créer des connexions",
+            55,
+            "Cliquez sur les neurones adjacents pour avancer",
             {
-                fontFamily: "Arial",
-                fontSize: "16px",
-                color: "#a0aec0",
+                fontFamily: "Courier New, monospace",
+                fontSize: "13px",
+                color: CYBER_COLORS.TEXT_WHITE,
             }
         );
         instructions.setScrollFactor(0);
 
+        // Objective panel at bottom
+        const objectivePanel = this.add.graphics();
+        objectivePanel.fillStyle(CYBER_COLORS.BG_PANEL, 0.9);
+        objectivePanel.fillRect(10, GameConfig.SCREEN_HEIGHT - 50, 300, 40);
+        objectivePanel.lineStyle(2, CYBER_COLORS.ORANGE, 0.8);
+        objectivePanel.strokeRect(10, GameConfig.SCREEN_HEIGHT - 50, 300, 40);
+        objectivePanel.setScrollFactor(0);
+
         // Objective indicator
-        const objective = this.add.text(20, GameConfig.SCREEN_HEIGHT - 40, "Objectif : Atteindre le CORE (orange)", {
-            fontFamily: "Arial",
+        const objective = this.add.text(20, GameConfig.SCREEN_HEIGHT - 38, "OBJECTIF: Atteindre le CORE", {
+            fontFamily: "Courier New, monospace",
             fontSize: "14px",
-            color: "#ed8936",
+            color: CYBER_COLORS.TEXT_ORANGE,
         });
         objective.setScrollFactor(0);
     }
@@ -164,6 +195,13 @@ export default class ExplorerGame extends Scene {
 
         // Neuron hacked (unblocked) by AI
         EventBus.on("network-neuron-hacked", this.onNeuronHacked, this);
+
+        // Dilemma triggered - show waiting message
+        EventBus.on("network-dilemma-triggered", this.onDilemmaTriggered, this);
+
+        // Dilemma choice made from DilemmaScreen
+        EventBus.on("network-dilemma-choice", this.onDilemmaChoiceMade, this);
+        EventBus.on("dilemma-choice-made", this.onDilemmaChoiceMade, this);
     }
 
     /**
@@ -309,22 +347,37 @@ export default class ExplorerGame extends Scene {
     }
 
     /**
-     * Handle AI catching explorer
+     * Handle AI catching explorer (called after dilemma is resolved)
      */
     private onAICaught(_data: { neuronId: string; explorerPushedTo: string }): void {
+        // Move explorer back after dilemma is resolved
+        this.moveBackOnPath();
+    }
+
+    /**
+     * Handle dilemma triggered by protector
+     */
+    private onDilemmaTriggered(data: { dilemmaId: string; neuronId: string }): void {
         // Close the puzzle if it's open
         if (this.isPuzzleSolving && this.puzzleManager.isPuzzleActive()) {
             this.puzzleManager.hidePuzzleUI();
             this.isPuzzleSolving = false;
         }
 
-        // Show notification
-        this.showPausePopup("IA DÉTECTÉE !", "L'IA s'est connectée à votre réseau !");
+        // Show dilemma in read-only mode
+        const dilemma = this.dilemmaManager.getDilemmaById(data.dilemmaId);
+        if (dilemma) {
+            this.dilemmaManager.showDilemma(dilemma);
+        }
+    }
 
-        // Move explorer back
-        this.time.delayedCall(2000, () => {
-            this.moveBackOnPath();
-        });
+    /**
+     * Handle when a dilemma choice is made from DilemmaScreen
+     */
+    private onDilemmaChoiceMade(): void {
+        // Hide the dilemma display
+        this.dilemmaManager.hideDilemma();
+        this.showMessage("Repoussé ! Connexion perdue !");
     }
 
     /**
@@ -420,27 +473,36 @@ export default class ExplorerGame extends Scene {
      * Show a temporary message (fixed to camera)
      */
     private showMessage(text: string): void {
-        const msg = this.add.text(
-            GameConfig.SCREEN_WIDTH / 2,
-            GameConfig.SCREEN_HEIGHT - 100,
-            text,
-            {
-                fontFamily: "Arial",
-                fontSize: "20px",
-                color: "#ffffff",
-                backgroundColor: "#2d3748",
-                padding: { x: 20, y: 10 },
-            }
-        ).setOrigin(0.5);
-        msg.setScrollFactor(0);
+        const centerX = GameConfig.SCREEN_WIDTH / 2;
+        const y = GameConfig.SCREEN_HEIGHT - 100;
 
-        const startY = msg.y;
+        // Create container for message
+        const container = this.add.container(centerX, y);
+        container.setScrollFactor(0);
+
+        // Background panel
+        const bgGraphics = this.add.graphics();
+        const textWidth = text.length * 10 + 40;
+        bgGraphics.fillStyle(CYBER_COLORS.BG_PANEL, 0.95);
+        bgGraphics.fillRect(-textWidth / 2, -20, textWidth, 40);
+        bgGraphics.lineStyle(2, CYBER_COLORS.CYAN, 0.8);
+        bgGraphics.strokeRect(-textWidth / 2, -20, textWidth, 40);
+
+        const msg = this.add.text(0, 0, text, {
+            fontFamily: "Courier New, monospace",
+            fontSize: "16px",
+            color: CYBER_COLORS.TEXT_CYAN,
+        }).setOrigin(0.5);
+
+        container.add([bgGraphics, msg]);
+
+        const startY = container.y;
         this.tweens.add({
-            targets: msg,
+            targets: container,
             alpha: 0,
             y: startY - 50,
             duration: 2000,
-            onComplete: () => msg.destroy(),
+            onComplete: () => container.destroy(),
         });
     }
 
@@ -492,8 +554,12 @@ export default class ExplorerGame extends Scene {
         EventBus.off("network-synapse-blocked", this.onSynapseBlocked, this);
         EventBus.off("network-neuron-destroyed", this.onNeuronDestroyed, this);
         EventBus.off("network-neuron-hacked", this.onNeuronHacked, this);
+        EventBus.off("network-dilemma-triggered", this.onDilemmaTriggered, this);
+        EventBus.off("network-dilemma-choice", this.onDilemmaChoiceMade, this);
+        EventBus.off("dilemma-choice-made", this.onDilemmaChoiceMade, this);
 
         this.networkManager?.destroy();
         this.puzzleManager?.destroy();
+        this.dilemmaManager?.destroy();
     }
 }

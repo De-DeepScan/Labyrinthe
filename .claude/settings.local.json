@@ -3,7 +3,10 @@
     "allow": [
       "Bash(git checkout:*)",
       "Bash(npm run build:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(timeout 5 npm run dev)",
+      "Bash(npx tsc:*)"
     ]
   }
 }

@@ -4,6 +4,7 @@ import { NeuronType } from "../types/interfaces";
 import { NEURAL_NETWORK_CONFIG } from "../config/NeuralNetworkConfig";
 import { DEPTH } from "../config/Constants";
 import { EventBus } from "../EventBus";
+import dilemmas from "../dilemme.json";
 
 // Isometric constants (same as NeuralNetworkManager)
 const ISO_ANGLE = Math.PI / 6;
@@ -691,6 +692,9 @@ export class AIManager {
     private handleCatchExplorer(): void {
         this.state.isConnected = true;
 
+        // Pause AI movement
+        this.isPaused = true;
+
         // Flash effect
         if (this.aiContainer) {
             this.scene.tweens.add({
@@ -703,16 +707,28 @@ export class AIManager {
             });
         }
 
-        EventBus.emit("ai-caught-explorer", {
+        // Select a random dilemma
+        const randomIndex = Math.floor(Math.random() * dilemmas.length);
+        const selectedDilemma = dilemmas[randomIndex];
+
+        // Emit dilemma event with the selected dilemma
+        EventBus.emit("ai-caught-explorer-dilemma", {
             neuronId: this.state.currentNeuronId,
+            dilemma: selectedDilemma,
         });
 
         this.onCatchExplorerCallback?.();
+    }
 
-        // Reset AI to spawn point after catching explorer
-        this.scene.time.delayedCall(1500, () => {
-            this.resetToSpawn();
-        });
+    /**
+     * Resume after dilemma choice is made
+     */
+    resumeAfterDilemma(): void {
+        this.isPaused = false;
+        this.state.isConnected = false;
+
+        // Reset AI to spawn point
+        this.resetToSpawn();
     }
 
     /**
