@@ -3,7 +3,7 @@ import type { NeuralNetworkData } from "../types/interfaces";
 import { SynapseState, NeuronType } from "../types/interfaces";
 import { NeuralNetworkManager } from "../managers/NeuralNetworkManager";
 import { AIManager } from "../managers/AIManager";
-import { FirewallManager } from "../managers/FirewallManager";
+import { TerminalManager } from "../managers/TerminalManager";
 import { ResourceManager } from "../managers/ResourceManager";
 import { NetworkManager } from "../services/NetworkManager";
 import { GameConfig } from "../config/GameConfig";
@@ -17,7 +17,7 @@ export default class ProtectorGame extends Scene {
     private networkData?: NeuralNetworkData;
     private networkManager?: NeuralNetworkManager;
     private aiManager?: AIManager;
-    private firewallManager!: FirewallManager;
+    private terminalManager!: TerminalManager;
     private resourceManager!: ResourceManager;
     private networkService!: NetworkManager;
 
@@ -42,13 +42,13 @@ export default class ProtectorGame extends Scene {
             this.updateResourceUI(current, max);
         });
 
-        // Initialize firewall manager
-        this.firewallManager = new FirewallManager(this);
-        this.firewallManager.onComplete((reward) => {
+        // Initialize terminal manager
+        this.terminalManager = new TerminalManager(this);
+        this.terminalManager.onComplete((reward) => {
             this.resourceManager.addResources(reward);
-            // Repousser l'IA à son point de départ
-            this.aiManager?.resetToSpawn();
-            this.showMessage("IA repoussée !");
+            // Ralentir l'IA de 25% pendant 3 secondes
+            this.aiManager?.applySlowdown();
+            this.showMessage("IA ralentie !");
         });
 
         // Create waiting UI
@@ -124,6 +124,7 @@ export default class ProtectorGame extends Scene {
     private dragStartY: number = 0;
     private cameraStartX: number = 0;
     private cameraStartY: number = 0;
+    private isTerminalOpen: boolean = false;
 
     /**
      * Initialize the game after receiving network data
@@ -204,6 +205,9 @@ export default class ProtectorGame extends Scene {
 
         // Setup drag to pan (middle or right click only, NOT left click)
         this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+            // Don't allow dragging when terminal is open
+            if (this.isTerminalOpen) return;
+
             // pointer.button: 0 = left, 1 = middle, 2 = right
             // Only allow drag with middle (1) or right (2) button
             if (pointer.button === 1 || pointer.button === 2) {
@@ -216,7 +220,7 @@ export default class ProtectorGame extends Scene {
         });
 
         this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => {
-            if (this.isDragging) {
+            if (this.isDragging && !this.isTerminalOpen) {
                 const dragX = pointer.x - this.dragStartX;
                 const dragY = pointer.y - this.dragStartY;
                 this.cameras.main.scrollX = this.cameraStartX - dragX;
@@ -263,8 +267,8 @@ export default class ProtectorGame extends Scene {
         // Resource display
         this.createResourceUI();
 
-        // Firewall button
-        this.createFirewallButton();
+        // Terminal button
+        this.createTerminalButton();
     }
 
     /**
@@ -339,37 +343,55 @@ export default class ProtectorGame extends Scene {
     }
 
     /**
-     * Create firewall button (fixed to camera)
+     * Create terminal button (fixed to camera)
      */
-    private createFirewallButton(): void {
+    private createTerminalButton(): void {
         const x = GameConfig.SCREEN_WIDTH - 120;
         const y = 110;
 
         this.firewallButton = this.add.container(x, y);
         this.firewallButton.setScrollFactor(0);
+        this.firewallButton.setDepth(100); // Ensure button is on top
 
-        const bg = this.add.rectangle(0, 0, 180, 45, 0x4299e1);
-        bg.setStrokeStyle(2, 0xffffff);
+        const bg = this.add.rectangle(0, 0, 180, 45, 0x00aa00);
+        bg.setStrokeStyle(2, 0x00ff00);
 
-        const text = this.add.text(0, 0, "JEU FIREWALL", {
-            fontFamily: "Arial Black",
+        const text = this.add.text(0, 0, "TERMINAL", {
+            fontFamily: "Courier New, monospace",
             fontSize: "16px",
-            color: "#ffffff",
+            color: "#00ff00",
         }).setOrigin(0.5);
 
         this.firewallButton.add([bg, text]);
 
-        bg.setInteractive({ useHandCursor: true });
+        // Make the container itself interactive with explicit hit area
+        this.firewallButton.setSize(180, 45);
+        this.firewallButton.setInteractive({ useHandCursor: true });
 
-        bg.on("pointerover", () => bg.setScale(1.05));
-        bg.on("pointerout", () => bg.setScale(1));
-        bg.on("pointerdown", () => {
+        this.firewallButton.on("pointerover", () => {
+            bg.setScale(1.05);
+            text.setScale(1.05);
+        });
+        this.firewallButton.on("pointerout", () => {
+            bg.setScale(1);
+            text.setScale(1);
+        });
+        this.firewallButton.on("pointerdown", () => {
             this.aiManager?.pause();
-            this.firewallManager.startGame();
+            this.terminalManager.startGame();
         });
 
-        // Resume AI when firewall closes
-        EventBus.on("firewall-round-complete", () => {
+        // Resume AI when terminal closes
+        EventBus.on("terminal-success", () => {
+            this.aiManager?.resume();
+        });
+
+        // Handle terminal open/close for disabling movements
+        EventBus.on("terminal-opened", () => {
+            this.isTerminalOpen = true;
+        });
+        EventBus.on("terminal-closed", () => {
+            this.isTerminalOpen = false;
             this.aiManager?.resume();
         });
     }
@@ -581,6 +603,9 @@ export default class ProtectorGame extends Scene {
      * Update camera with keyboard controls
      */
     private updateCameraControls(delta: number): void {
+        // Don't process camera controls if terminal is open
+        if (this.isTerminalOpen) return;
+
         const speed = 0.5 * delta; // Pixels per ms
 
         // Arrow keys
@@ -692,9 +717,12 @@ export default class ProtectorGame extends Scene {
         EventBus.off("network-synapse-activated", this.onSynapseActivated, this);
         EventBus.off("network-synapse-deactivated", this.onSynapseDeactivated, this);
         EventBus.off("network-game-won", this.onGameWon, this);
+        EventBus.off("terminal-success");
+        EventBus.off("terminal-opened");
+        EventBus.off("terminal-closed");
 
         this.networkManager?.destroy();
         this.aiManager?.destroy();
-        this.firewallManager?.destroy();
+        this.terminalManager?.destroy();
     }
 }

@@ -30,6 +30,10 @@ export class AIManager {
     private hackingProgress: number = 0;
     private hackingDuration: number = NEURAL_NETWORK_CONFIG.AI_HACK_TIME;
 
+    // Slowdown state (from terminal success)
+    private isSlowedDown: boolean = false;
+    private slowdownTimer?: Phaser.Time.TimerEvent;
+
     // Visual elements
     private aiContainer?: Phaser.GameObjects.Container;
     private pathGraphics?: Phaser.GameObjects.Graphics;
@@ -789,6 +793,68 @@ export class AIManager {
     }
 
     /**
+     * Apply a 25% slowdown for 3 seconds (non-cumulative)
+     */
+    applySlowdown(): void {
+        // If already slowed down, don't stack - just refresh the timer
+        if (this.isSlowedDown) {
+            // Cancel existing timer and create new one
+            if (this.slowdownTimer) {
+                this.slowdownTimer.remove();
+            }
+            this.slowdownTimer = this.scene.time.delayedCall(3000, () => {
+                this.removeSlowdown();
+            });
+            return;
+        }
+
+        this.isSlowedDown = true;
+
+        // Apply 25% speed reduction
+        this.state.speed *= 0.75;
+
+        // Visual effect - tint the AI blue to show slowdown
+        if (this.aiContainer) {
+            this.aiContainer.list.forEach((child) => {
+                if (child instanceof Phaser.GameObjects.Graphics) {
+                    child.setAlpha(0.6);
+                }
+            });
+        }
+
+        // Remove slowdown after 3 seconds
+        this.slowdownTimer = this.scene.time.delayedCall(3000, () => {
+            this.removeSlowdown();
+        });
+    }
+
+    /**
+     * Remove the slowdown effect
+     */
+    private removeSlowdown(): void {
+        if (!this.isSlowedDown) return;
+
+        this.isSlowedDown = false;
+
+        // Restore speed (recalculate based on current multiplier)
+        this.state.speed = Math.min(
+            this.state.baseSpeed * this.state.speedMultiplier,
+            NEURAL_NETWORK_CONFIG.AI_MAX_SPEED
+        );
+
+        // Remove visual effect
+        if (this.aiContainer) {
+            this.aiContainer.list.forEach((child) => {
+                if (child instanceof Phaser.GameObjects.Graphics) {
+                    child.setAlpha(1);
+                }
+            });
+        }
+
+        this.slowdownTimer = undefined;
+    }
+
+    /**
      * Get current AI state
      */
     getState(): AIState {
@@ -861,5 +927,6 @@ export class AIManager {
         this.aiContainer?.destroy();
         this.pathGraphics?.destroy();
         this.cleanupHackingVisual();
+        this.slowdownTimer?.remove();
     }
 }
