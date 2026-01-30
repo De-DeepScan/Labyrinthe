@@ -18,7 +18,7 @@ interface NeuronSprite {
 
 // Isometric constants
 const ISO_ANGLE = Math.PI / 6; // 30 degrees
-const ISO_SCALE_Y = 0.5; // Vertical compression for isometric
+const ISO_SCALE_Y = 0.75; // Vertical compression for isometric (less aggressive)
 
 interface SynapseGraphics {
     line: Phaser.GameObjects.Graphics;

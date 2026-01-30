@@ -7,7 +7,7 @@ import { EventBus } from "../EventBus";
 
 // Isometric constants (same as NeuralNetworkManager)
 const ISO_ANGLE = Math.PI / 6;
-const ISO_SCALE_Y = 0.5;
+const ISO_SCALE_Y = 0.75; // Must match NeuralNetworkManager
 
 /**
  * Manages AI behavior and pursuit of the explorer
