@@ -312,6 +312,12 @@ export default class ExplorerGame extends Scene {
      * Handle AI catching explorer
      */
     private onAICaught(_data: { neuronId: string; explorerPushedTo: string }): void {
+        // Close the puzzle if it's open
+        if (this.isPuzzleSolving && this.puzzleManager.isPuzzleActive()) {
+            this.puzzleManager.hidePuzzleUI();
+            this.isPuzzleSolving = false;
+        }
+
         // Show notification
         this.showPausePopup("IA DÉTECTÉE !", "L'IA s'est connectée à votre réseau !");
 

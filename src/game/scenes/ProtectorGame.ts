@@ -566,6 +566,11 @@ export default class ProtectorGame extends Scene {
      * Handle AI catching explorer
      */
     private onAICaughtExplorer(): void {
+        // Close the terminal if it's open
+        if (this.terminalManager.isActive()) {
+            this.terminalManager.hideUI();
+        }
+
         // Show notification
         this.showPausePopup("IA CONNECTÉE !", "L'Explorateur a été repoussé !");
 
