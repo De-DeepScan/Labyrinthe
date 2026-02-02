@@ -30,6 +30,32 @@ export class NetworkManager {
         this.role = role;
         this.isConnected = true;
         this.send("player-connected", { role });
+
+        // Send periodic pings to detect partner
+        this.startPinging();
+    }
+
+    private pingInterval?: ReturnType<typeof setInterval>;
+
+    /**
+     * Start sending periodic pings to detect partner
+     */
+    private startPinging(): void {
+        // Send initial ping
+        this.send("ping", { role: this.role });
+
+        // Send ping every 2 seconds until partner is detected
+        this.pingInterval = setInterval(() => {
+            if (!this.partnerConnected) {
+                this.send("ping", { role: this.role });
+            } else {
+                // Stop pinging once partner is connected
+                if (this.pingInterval) {
+                    clearInterval(this.pingInterval);
+                    this.pingInterval = undefined;
+                }
+            }
+        }, 2000);
     }
 
     getRole(): PlayerRole {
@@ -60,6 +86,12 @@ export class NetworkManager {
      * Handle incoming messages
      */
     private handleMessage(message: NetworkMessage): void {
+        // Any message from the other player means they're connected
+        if (!this.partnerConnected && message.from) {
+            this.partnerConnected = true;
+            EventBus.emit("partner-connected", { role: message.from });
+        }
+
         switch (message.type) {
             case "player-connected":
                 this.partnerConnected = true;
@@ -74,7 +106,23 @@ export class NetworkManager {
                 EventBus.emit("partner-connected", message.data);
                 break;
 
+            case "ping":
+                // Respond to ping with pong
+                this.partnerConnected = true;
+                EventBus.emit("partner-connected", message.data);
+                this.send("pong", { role: this.role });
+                break;
+
+            case "pong":
+                // Partner responded to our ping
+                this.partnerConnected = true;
+                EventBus.emit("partner-connected", message.data);
+                break;
+
             case "network-generated":
+                // Mark explorer as connected when we receive network data
+                this.partnerConnected = true;
+                EventBus.emit("partner-connected", { role: "explorer" });
                 EventBus.emit("network-data-received", message.data as NeuralNetworkData);
                 break;
 
@@ -298,5 +346,9 @@ export class NetworkManager {
      */
     destroy(): void {
         gamemaster.socket.off("game-message");
+        if (this.pingInterval) {
+            clearInterval(this.pingInterval);
+            this.pingInterval = undefined;
+        }
     }
 }
