@@ -17,24 +17,37 @@ function App() {
     const setAIEnabled = useGameStore((state) => state.setAIEnabled);
     const reset = useGameStore((state) => state.reset);
 
-    // Auto-assign role from URL parameter (?role=explorer or ?role=protector)
+    // Auto-assign role and start from URL parameters
+    // ?role=explorer or ?role=protector
+    // ?start=true to start without backoffice
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
         const urlRole = params.get("role");
+        const autoStart = params.get("start") === "true";
+
         if (urlRole === "explorer" || urlRole === "protector") {
             setRole(urlRole);
         }
-    }, [setRole]);
+
+        if (autoStart) {
+            setGameStarted(true);
+        }
+    }, [setRole, setGameStarted]);
 
     // Register with gamemaster and setup listeners
     useEffect(() => {
-        // Register the game with available actions
-        gamemaster.register("labyrinthe", "Labyrinthe Neural", [
-            { id: "reset", label: "Réinitialiser" },
-            { id: "start", label: "Démarrer la partie" },
-            { id: "enable_ai", label: "Activer l'IA" },
-            { id: "disable_ai", label: "Désactiver l'IA" },
-        ]);
+        // Register the game with available actions and role
+        gamemaster.register(
+            "labyrinthe",
+            `Labyrinthe - ${role === 'explorer' ? 'Explorateur' : role === 'protector' ? 'Protecteur' : 'En attente'}`,
+            [
+                { id: "reset", label: "Réinitialiser" },
+                { id: "start", label: "Démarrer la partie" },
+                { id: "enable_ai", label: "Activer l'IA" },
+                { id: "disable_ai", label: "Désactiver l'IA" },
+            ],
+            role || undefined
+        );
 
         // Connection status
         gamemaster.onConnect(() => setConnected(true));
@@ -60,7 +73,7 @@ function App() {
                     break;
             }
         });
-    }, [reset, setGameStarted, setAIEnabled]);
+    }, [role, reset, setGameStarted, setAIEnabled]);
 
     // Send state updates to backoffice
     useEffect(() => {

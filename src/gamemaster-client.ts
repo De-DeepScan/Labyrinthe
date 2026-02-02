@@ -17,8 +17,8 @@ interface Command {
 const socket: Socket = io(BACKOFFICE_URL);
 
 export const gamemaster = {
-  register(gameId: string, name: string, availableActions: GameAction[] = []) {
-    socket.emit("register", { gameId, name, availableActions });
+  register(gameId: string, name: string, availableActions: GameAction[] = [], role?: string) {
+    socket.emit("register", { gameId, name, availableActions, role });
   },
 
   onCommand(callback: (cmd: { action: string; payload: Record<string, unknown> }) => void) {

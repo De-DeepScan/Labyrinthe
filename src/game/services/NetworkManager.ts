@@ -1,18 +1,18 @@
 import type { NeuralNetworkData, PlayerRole, NetworkMessage, NetworkMessageType } from "../types/interfaces";
 import { EventBus } from "../EventBus";
+import { gamemaster } from "../../gamemaster-client";
 
 /**
- * Manages communication between browser tabs using BroadcastChannel
+ * Manages communication between players using Socket.IO via the gamemaster server.
+ * This allows players on different computers to play together over the network.
  */
 export class NetworkManager {
     private static instance: NetworkManager;
-    private channel: BroadcastChannel;
     private role: PlayerRole = null;
     private isConnected: boolean = false;
     private partnerConnected: boolean = false;
 
     private constructor() {
-        this.channel = new BroadcastChannel("neural-network-game");
         this.setupListeners();
     }
 
@@ -45,17 +45,15 @@ export class NetworkManager {
     }
 
     /**
-     * Setup message listeners
+     * Setup message listeners via Socket.IO
      */
     private setupListeners(): void {
-        this.channel.onmessage = (event: MessageEvent<NetworkMessage>) => {
-            const message = event.data;
-
+        gamemaster.socket.on("game-message", (message: NetworkMessage) => {
             // Don't process our own messages
             if (message.from === this.role) return;
 
             this.handleMessage(message);
-        };
+        });
     }
 
     /**
@@ -150,16 +148,17 @@ export class NetworkManager {
     }
 
     /**
-     * Send a message to the other tab
+     * Send a message to the other player via Socket.IO
      */
     send(type: NetworkMessageType, data: unknown): void {
-        const message: NetworkMessage = {
+        const message: NetworkMessage & { gameId: string } = {
             type,
             data,
             from: this.role,
             timestamp: Date.now(),
+            gameId: "labyrinthe",
         };
-        this.channel.postMessage(message);
+        gamemaster.socket.emit("game-message", message);
     }
 
     // ============= Explorer methods =============
@@ -298,6 +297,6 @@ export class NetworkManager {
      * Cleanup
      */
     destroy(): void {
-        this.channel.close();
+        gamemaster.socket.off("game-message");
     }
 }
