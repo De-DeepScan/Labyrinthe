@@ -28,6 +28,12 @@ interface GameState {
     role: PlayerRole;
     setRole: (role: PlayerRole) => void;
 
+    // Gamemaster control
+    gameStarted: boolean;
+    setGameStarted: (started: boolean) => void;
+    aiEnabled: boolean;
+    setAIEnabled: (enabled: boolean) => void;
+
     // Network data
     networkData: NeuralNetworkData3D | null;
     setNetworkData: (data: NeuralNetworkData3D) => void;
@@ -111,6 +117,12 @@ export const useGameStore = create<GameState>((set, get) => ({
         NetworkManager.getInstance().setRole(role);
         set({ role });
     },
+
+    // Gamemaster control
+    gameStarted: false,
+    setGameStarted: (started) => set({ gameStarted: started }),
+    aiEnabled: true,
+    setAIEnabled: (enabled) => set({ aiEnabled: enabled }),
 
     // Network
     networkData: null,
@@ -274,6 +286,8 @@ export const useGameStore = create<GameState>((set, get) => ({
     // Reset
     reset: () => set({
         role: null,
+        gameStarted: false,
+        aiEnabled: true,
         networkData: null,
         explorerPosition: null,
         explorerPath: [],

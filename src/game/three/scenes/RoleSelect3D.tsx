@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Text } from '@react-three/drei';
 import * as THREE from 'three';
@@ -6,9 +6,57 @@ import { useGameStore } from '../../stores/gameStore';
 import { GridFloor } from '../effects/GridFloor';
 
 export function RoleSelect3D() {
-    const setRole = useGameStore((state) => state.setRole);
-    const [hovered, setHovered] = useState<'explorer' | 'protector' | null>(null);
+    const role = useGameStore((state) => state.role);
+    const gameStarted = useGameStore((state) => state.gameStarted);
 
+    // If role is selected but game not started, show waiting screen
+    if (role && !gameStarted) {
+        return (
+            <group>
+                {/* Spherical grid */}
+                <GridFloor radius={100} rings={12} segments={32} centerY={15} />
+
+                {/* Waiting message */}
+                <Text
+                    position={[0, 25, 0]}
+                    fontSize={3}
+                    color={role === 'explorer' ? '#00d4aa' : '#ff9933'}
+                    anchorX="center"
+                    anchorY="middle"
+                >
+                    {role === 'explorer' ? 'EXPLORATEUR' : 'PROTECTEUR'}
+                </Text>
+
+                <Text
+                    position={[0, 18, 0]}
+                    fontSize={2}
+                    color="#666688"
+                    anchorX="center"
+                    anchorY="middle"
+                >
+                    En attente du gamemaster...
+                </Text>
+
+                <Text
+                    position={[0, 12, 0]}
+                    fontSize={1.2}
+                    color="#444466"
+                    anchorX="center"
+                    anchorY="middle"
+                >
+                    La partie démarrera bientôt
+                </Text>
+
+                {/* Pulsing indicator */}
+                <PulsingIndicator color={role === 'explorer' ? '#00d4aa' : '#ff9933'} />
+
+                {/* Floating decorative elements */}
+                <FloatingNeurons />
+            </group>
+        );
+    }
+
+    // No role assigned - show configuration message
     return (
         <group>
             {/* Spherical grid */}
@@ -18,46 +66,32 @@ export function RoleSelect3D() {
             <Text
                 position={[0, 25, 0]}
                 fontSize={4}
-                color="#00d4aa"
+                color="#ff3366"
                 anchorX="center"
                 anchorY="middle"
             >
-                INFILTRATION NEURALE
+                CONFIGURATION REQUISE
             </Text>
 
             <Text
-                position={[0, 20, 0]}
+                position={[0, 18, 0]}
                 fontSize={1.5}
                 color="#666688"
                 anchorX="center"
                 anchorY="middle"
             >
-                Choisissez votre rôle
+                Aucun rôle attribué à cet écran
             </Text>
 
-            {/* Explorer button */}
-            <RoleButton
-                position={[-15, 5, 0]}
-                label="EXPLORATEUR"
-                description="Naviguez le réseau neural"
-                color="#00d4aa"
-                isHovered={hovered === 'explorer'}
-                onHover={() => setHovered('explorer')}
-                onLeave={() => setHovered(null)}
-                onClick={() => setRole('explorer')}
-            />
-
-            {/* Protector button */}
-            <RoleButton
-                position={[15, 5, 0]}
-                label="PROTECTEUR"
-                description="Défendez contre l'IA"
-                color="#ff9933"
-                isHovered={hovered === 'protector'}
-                onHover={() => setHovered('protector')}
-                onLeave={() => setHovered(null)}
-                onClick={() => setRole('protector')}
-            />
+            <Text
+                position={[0, 12, 0]}
+                fontSize={1}
+                color="#444466"
+                anchorX="center"
+                anchorY="middle"
+            >
+                Ajoutez ?role=explorer ou ?role=protector à l'URL
+            </Text>
 
             {/* Floating decorative elements */}
             <FloatingNeurons />
@@ -65,118 +99,29 @@ export function RoleSelect3D() {
     );
 }
 
-interface RoleButtonProps {
-    position: [number, number, number];
-    label: string;
-    description: string;
-    color: string;
-    isHovered: boolean;
-    onHover: () => void;
-    onLeave: () => void;
-    onClick: () => void;
-}
-
-function RoleButton({
-    position,
-    label,
-    description,
-    color,
-    isHovered,
-    onHover,
-    onLeave,
-    onClick
-}: RoleButtonProps) {
-    const groupRef = useRef<THREE.Group>(null);
-    const glowRef = useRef<THREE.Mesh>(null);
+// Pulsing indicator while waiting
+function PulsingIndicator({ color }: { color: string }) {
+    const meshRef = useRef<THREE.Mesh>(null);
 
     useFrame((state) => {
-        if (groupRef.current) {
-            // Hover animation
-            const targetScale = isHovered ? 1.1 : 1;
-            groupRef.current.scale.lerp(
-                new THREE.Vector3(targetScale, targetScale, targetScale),
-                0.1
-            );
-
-            // Gentle float
-            groupRef.current.position.y = position[1] + Math.sin(state.clock.elapsedTime * 2) * 0.3;
-        }
-
-        if (glowRef.current) {
-            // Glow pulse
-            const material = glowRef.current.material as THREE.MeshBasicMaterial;
-            material.opacity = isHovered ? 0.4 : 0.1 + Math.sin(state.clock.elapsedTime * 3) * 0.05;
+        if (meshRef.current) {
+            const scale = 1 + Math.sin(state.clock.elapsedTime * 2) * 0.3;
+            meshRef.current.scale.setScalar(scale);
+            meshRef.current.rotation.y = state.clock.elapsedTime * 0.5;
         }
     });
 
     return (
-        <group ref={groupRef} position={position}>
-            {/* Glow */}
-            <mesh ref={glowRef} position={[0, 0, -0.5]}>
-                <planeGeometry args={[18, 12]} />
-                <meshBasicMaterial color={color} transparent opacity={0.1} />
-            </mesh>
-
-            {/* Panel background */}
-            <mesh position={[0, 0, 0]}>
-                <boxGeometry args={[16, 10, 0.5]} />
-                <meshStandardMaterial
-                    color="#0a1628"
-                    emissive={color}
-                    emissiveIntensity={isHovered ? 0.1 : 0.02}
-                />
-            </mesh>
-
-            {/* Border */}
-            <lineSegments position={[0, 0, 0.3]}>
-                <edgesGeometry args={[new THREE.BoxGeometry(16, 10, 0.1)]} />
-                <lineBasicMaterial color={color} linewidth={2} />
-            </lineSegments>
-
-            {/* Icon (simple geometric shape) */}
-            <mesh position={[0, 1.5, 1]}>
-                <icosahedronGeometry args={[1.5, 0]} />
-                <meshStandardMaterial
-                    color={color}
-                    emissive={color}
-                    emissiveIntensity={0.5}
-                    wireframe
-                />
-            </mesh>
-
-            {/* Label */}
-            <Text
-                position={[0, -1.5, 1]}
-                fontSize={1.2}
+        <mesh ref={meshRef} position={[0, 3, 0]}>
+            <torusGeometry args={[3, 0.3, 16, 32]} />
+            <meshStandardMaterial
                 color={color}
-                anchorX="center"
-                anchorY="middle"
-            >
-                {label}
-            </Text>
-
-            {/* Description */}
-            <Text
-                position={[0, -3, 1]}
-                fontSize={0.6}
-                color="#666688"
-                anchorX="center"
-                anchorY="middle"
-            >
-                {description}
-            </Text>
-
-            {/* Hit area */}
-            <mesh
-                position={[0, 0, 1]}
-                onPointerEnter={onHover}
-                onPointerLeave={onLeave}
-                onClick={onClick}
-            >
-                <planeGeometry args={[16, 10]} />
-                <meshBasicMaterial transparent opacity={0} />
-            </mesh>
-        </group>
+                emissive={color}
+                emissiveIntensity={0.5}
+                transparent
+                opacity={0.7}
+            />
+        </mesh>
     );
 }
 

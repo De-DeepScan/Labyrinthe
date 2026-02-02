@@ -71,6 +71,7 @@ export function ProtectorScene() {
     const isGameOver = useGameStore((state) => state.isGameOver);
     const aiSlowdownActive = useGameStore((state) => state.aiSlowdownActive);
     const showDilemma = useGameStore((state) => state.showDilemma);
+    const aiEnabled = useGameStore((state) => state.aiEnabled);
 
     // Recalculate AI path when explorer or AI moves
     useEffect(() => {
@@ -233,8 +234,8 @@ export function ProtectorScene() {
 
     // AI movement and repair timer using useFrame
     useFrame((_, delta) => {
-        // Pause during dilemma or game over
-        if (!networkData || !aiState || !explorerPosition || isGameOver || showDilemma) return;
+        // Pause during dilemma, game over, or when AI is disabled
+        if (!networkData || !aiState || !explorerPosition || isGameOver || showDilemma || !aiEnabled) return;
 
         // Handle repair progress
         if (pendingRepairNeuron) {

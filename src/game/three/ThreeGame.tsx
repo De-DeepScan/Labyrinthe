@@ -13,11 +13,15 @@ import { NetworkManager } from '../services/NetworkManager';
 
 export function ThreeGame() {
     const role = useGameStore((state) => state.role);
+    const gameStarted = useGameStore((state) => state.gameStarted);
     const [isLoading, setIsLoading] = useState(true);
 
     const handleLoaded = useCallback(() => {
         setIsLoading(false);
     }, []);
+
+    // Show RoleSelect if no role or if role selected but game not started
+    const showRoleSelect = !role || (role && !gameStarted);
 
     return (
         <div style={{ width: '100vw', height: '100vh', background: '#000408' }}>
@@ -32,10 +36,10 @@ export function ThreeGame() {
                     <ambientLight intensity={0.3} color="#112233" />
                     <directionalLight position={[50, 50, 50]} intensity={0.5} color="#00d4aa" />
 
-                    {/* Scene based on role */}
-                    {role === null && <RoleSelect3D />}
-                    {role === 'explorer' && <ExplorerScene />}
-                    {role === 'protector' && <ProtectorScene />}
+                    {/* Scene based on role and game started state */}
+                    {showRoleSelect && <RoleSelect3D />}
+                    {role === 'explorer' && gameStarted && <ExplorerScene />}
+                    {role === 'protector' && gameStarted && <ProtectorScene />}
 
                     {/* Reduced post-processing */}
                     <CyberpunkEffects />
