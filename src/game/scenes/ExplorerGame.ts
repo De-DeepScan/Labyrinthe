@@ -507,45 +507,6 @@ export default class ExplorerGame extends Scene {
     }
 
     /**
-     * Show pause popup (fixed to camera)
-     */
-    private showPausePopup(title: string, message: string): void {
-        const centerX = GameConfig.SCREEN_WIDTH / 2;
-        const centerY = GameConfig.SCREEN_HEIGHT / 2;
-
-        const container = this.add.container(centerX, centerY);
-        container.setScrollFactor(0);
-
-        const bg = this.add.rectangle(0, 0, 400, 200, 0x000000, 0.9);
-        bg.setStrokeStyle(3, 0xe53e3e);
-
-        const titleText = this.add.text(0, -50, title, {
-            fontFamily: "Arial Black",
-            fontSize: "32px",
-            color: "#e53e3e",
-        }).setOrigin(0.5);
-
-        const messageText = this.add.text(0, 10, message, {
-            fontFamily: "Arial",
-            fontSize: "18px",
-            color: "#ffffff",
-        }).setOrigin(0.5);
-
-        container.add([bg, titleText, messageText]);
-        container.setDepth(1000);
-
-        // Fade out after delay
-        this.time.delayedCall(1800, () => {
-            this.tweens.add({
-                targets: container,
-                alpha: 0,
-                duration: 200,
-                onComplete: () => container.destroy(),
-            });
-        });
-    }
-
-    /**
      * Cleanup
      */
     shutdown(): void {

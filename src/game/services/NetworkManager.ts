@@ -276,7 +276,7 @@ export class NetworkManager {
     /**
      * Send dilemma triggered (when AI catches explorer)
      */
-    sendDilemmaTriggered(data: { dilemmaId: string; neuronId: string }): void {
+    sendDilemmaTriggered(data: { title: string; description: string; choices: { id: string; description: string }[] }): void {
         this.send("dilemma-triggered", data);
     }
 
