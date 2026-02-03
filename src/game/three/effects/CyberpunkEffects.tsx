@@ -1,5 +1,5 @@
 import { EffectComposer, Bloom } from '@react-three/postprocessing';
-import { BlurPass, Resolution } from 'postprocessing';
+import { Resolution } from 'postprocessing';
 
 export function CyberpunkEffects() {
     return (

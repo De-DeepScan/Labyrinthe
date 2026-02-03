@@ -714,8 +714,9 @@ export default class ProtectorGame extends Scene {
 
         // Send dilemma to all screens via network (DilemmaScreen and ExplorerGame)
         this.networkService.sendDilemmaTriggered({
-            dilemmaId: data.dilemma.id,
-            neuronId: data.neuronId,
+            title: `Dilemme éthique`,
+            description: data.dilemma.description,
+            choices: data.dilemma.choices,
         });
 
         // Show dilemma in read-only mode

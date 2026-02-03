@@ -15,6 +15,7 @@ export interface Neuron3D extends Omit<Neuron, 'x' | 'y'> {
     x: number;
     y: number;
     z: number;
+    opacity?: number; // Optional opacity for decorative neurons (default 1.0)
 }
 
 // Extended Network data for 3D
@@ -51,6 +52,13 @@ interface GameState {
 
     // Synapse states
     updateSynapseState: (synapseId: string, state: SynapseState) => void;
+    unlockSynapse: (synapseId: string) => void;
+
+    // Hacking state (Protector)
+    selectedSynapseId: string | null;
+    isHacking: boolean;
+    setSelectedSynapse: (synapseId: string | null) => void;
+    setIsHacking: (hacking: boolean) => void;
 
     // Neuron states
     activateNeuron: (neuronId: string) => void;
@@ -73,6 +81,15 @@ interface GameState {
     isGameOver: boolean;
     isVictory: boolean;
     setGameOver: (victory: boolean) => void;
+
+    // Level progression
+    currentLevel: number;
+    setCurrentLevel: (level: number) => void;
+    advanceLevel: () => void;
+    showLevelTransition: boolean;
+    pendingLevel: number | null;
+    triggerLevelTransition: () => void;
+    completeLevelTransition: () => void;
 
     // Camera
     cameraTarget: [number, number, number];
@@ -158,6 +175,26 @@ export const useGameStore = create<GameState>((set, get) => ({
             }
         };
     }),
+    unlockSynapse: (synapseId) => set((state) => {
+        if (!state.networkData) return {};
+        const synapse = state.networkData.synapses[synapseId];
+        if (!synapse) return {};
+        return {
+            networkData: {
+                ...state.networkData,
+                synapses: {
+                    ...state.networkData.synapses,
+                    [synapseId]: { ...synapse, isUnlocked: true }
+                }
+            }
+        };
+    }),
+
+    // Hacking state (Protector)
+    selectedSynapseId: null,
+    isHacking: false,
+    setSelectedSynapse: (synapseId) => set({ selectedSynapseId: synapseId }),
+    setIsHacking: (hacking) => set({ isHacking: hacking }),
 
     // Neuron
     activateNeuron: (neuronId) => set((state) => {
@@ -232,6 +269,77 @@ export const useGameStore = create<GameState>((set, get) => ({
     isVictory: false,
     setGameOver: (victory) => set({ isGameOver: true, isVictory: victory }),
 
+    // Level progression
+    currentLevel: 1,
+    showLevelTransition: false,
+    pendingLevel: null,
+    setCurrentLevel: (level) => set({ currentLevel: level }),
+
+    // Trigger level transition animation (called when reaching core)
+    triggerLevelTransition: () => set((state) => {
+        const nextLevel = state.currentLevel + 1;
+        if (nextLevel > 3) {
+            // Game complete - victory!
+            return { isGameOver: true, isVictory: true };
+        }
+        return {
+            showLevelTransition: true,
+            pendingLevel: nextLevel,
+        };
+    }),
+
+    // Complete level transition (called when animation ends)
+    completeLevelTransition: () => set((state) => {
+        if (!state.pendingLevel || !state.networkData) {
+            return { showLevelTransition: false, pendingLevel: null };
+        }
+
+        const entryId = state.networkData.entryNeuronId;
+
+        // Reset all synapses to dormant and locked (except first main path synapse)
+        const resetSynapses: Record<string, typeof state.networkData.synapses[string]> = {};
+        for (const [id, synapse] of Object.entries(state.networkData.synapses)) {
+            // First main path synapse is unlocked, decorative synapses stay unlocked
+            const isFirstMainSynapse = id === 's_0';
+            const isDecorativeSynapse = id.startsWith('s_deco_');
+            resetSynapses[id] = {
+                ...synapse,
+                state: SynapseState.DORMANT,
+                isUnlocked: isFirstMainSynapse || isDecorativeSynapse,
+            };
+        }
+
+        // Reset all neurons (deactivate, unblock) except entry
+        const resetNeurons: Record<string, typeof state.networkData.neurons[string]> = {};
+        for (const [id, neuron] of Object.entries(state.networkData.neurons)) {
+            resetNeurons[id] = {
+                ...neuron,
+                isActivated: id === entryId,
+                isBlocked: false,
+            };
+        }
+
+        return {
+            currentLevel: state.pendingLevel,
+            showLevelTransition: false,
+            pendingLevel: null,
+            explorerPosition: entryId,
+            explorerPath: [entryId],
+            activePuzzle: null,
+            currentPuzzle: null,
+            networkData: {
+                ...state.networkData,
+                neurons: resetNeurons,
+                synapses: resetSynapses,
+            },
+        };
+    }),
+
+    // Legacy advanceLevel (now just triggers transition)
+    advanceLevel: () => {
+        useGameStore.getState().triggerLevelTransition();
+    },
+
     // Camera
     cameraTarget: [0, 0, 0],
     setCameraTarget: (target) => set({ cameraTarget: target }),
@@ -297,6 +405,9 @@ export const useGameStore = create<GameState>((set, get) => ({
         activePuzzle: null,
         isGameOver: false,
         isVictory: false,
+        currentLevel: 1,
+        showLevelTransition: false,
+        pendingLevel: null,
         cameraTarget: [0, 0, 0],
         showTerminal: false,
         showDilemma: false,
@@ -305,5 +416,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         aiSlowdownActive: false,
         aiSlowdownEndTime: 0,
         messages: [],
+        selectedSynapseId: null,
+        isHacking: false,
     }),
 }));

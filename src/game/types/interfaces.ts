@@ -38,6 +38,7 @@ export interface Synapse {
     toNeuronId: string;
     state: SynapseState;
     difficulty: number; // Puzzle difficulty 1-3
+    isUnlocked: boolean; // Must be unlocked by Protector before Explorer can traverse
 }
 
 // The complete neural network structure
@@ -151,6 +152,10 @@ export interface ProtectorState {
     blockedSynapses: string[];
     isPlayingFirewall: boolean;
     firewallState: FirewallState | null;
+    // Hacker role state
+    selectedSynapseId: string | null;
+    isHacking: boolean;
+    hackingProgress: number;
 }
 
 // ============= NETWORK MESSAGES =============
@@ -166,9 +171,12 @@ export type NetworkMessageType =
     | "game-state-response"
     | "network-generated"
     | "explorer-moved"
+    | "explorer-position-update"
     | "synapse-activated"
     | "synapse-deactivated"
     | "synapse-blocked"
+    | "synapse-unlocked"
+    | "synapse-unlock-failed"
     | "neuron-destroyed"
     | "neuron-hacked"
     | "ai-position"

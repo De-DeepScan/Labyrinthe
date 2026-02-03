@@ -156,6 +156,18 @@ export class NetworkManager {
                 EventBus.emit("network-synapse-blocked", message.data);
                 break;
 
+            case "synapse-unlocked":
+                EventBus.emit("network-synapse-unlocked", message.data);
+                break;
+
+            case "synapse-unlock-failed":
+                EventBus.emit("network-synapse-unlock-failed", message.data);
+                break;
+
+            case "explorer-position-update":
+                EventBus.emit("network-explorer-position-update", message.data);
+                break;
+
             case "neuron-destroyed":
                 EventBus.emit("network-neuron-destroyed", message.data);
                 break;

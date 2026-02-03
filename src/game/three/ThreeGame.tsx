@@ -1,15 +1,16 @@
 import { Canvas } from '@react-three/fiber';
-import { Suspense, useState, useCallback } from 'react';
+import { Suspense, useState, useCallback, useEffect } from 'react';
 import { useGameStore } from '../stores/gameStore';
 import { RoleSelect3D } from './scenes/RoleSelect3D';
 import { ExplorerScene } from './scenes/ExplorerScene';
-import { ProtectorScene } from './scenes/ProtectorScene';
 import { CyberpunkEffects } from './effects/CyberpunkEffects';
 import { LoadingScreen } from './components/LoadingScreen';
 import { PuzzleOverlay } from './overlays/PuzzleOverlay';
 import { DilemmaOverlay } from './overlays/DilemmaOverlay';
-import { TerminalOverlay } from './overlays/TerminalOverlay';
+import { LevelTransition } from './overlays/LevelTransition';
+import { ProtectorTerminal } from './overlays/ProtectorTerminal';
 import { NetworkManager } from '../services/NetworkManager';
+import { EventBus } from '../EventBus';
 
 export function ThreeGame() {
     const role = useGameStore((state) => state.role);
@@ -22,6 +23,16 @@ export function ThreeGame() {
 
     // Show RoleSelect if no role or if role selected but game not started
     const showRoleSelect = !role || (role && !gameStarted);
+
+    // Protector uses a full-screen terminal interface instead of 3D scene
+    if (role === 'protector' && gameStarted) {
+        return (
+            <div style={{ width: '100vw', height: '100vh', background: '#000408' }}>
+                <ProtectorTerminal />
+                <ProtectorUIOverlays />
+            </div>
+        );
+    }
 
     return (
         <div style={{ width: '100vw', height: '100vh', background: '#000408' }}>
@@ -39,7 +50,6 @@ export function ThreeGame() {
                     {/* Scene based on role and game started state */}
                     {showRoleSelect && <RoleSelect3D />}
                     {role === 'explorer' && gameStarted && <ExplorerScene />}
-                    {role === 'protector' && gameStarted && <ProtectorScene />}
 
                     {/* Reduced post-processing */}
                     <CyberpunkEffects />
@@ -71,6 +81,9 @@ function UIOverlays() {
     const showTerminal = useGameStore((state) => state.showTerminal);
     const setShowTerminal = useGameStore((state) => state.setShowTerminal);
     const aiRepairProgress = useGameStore((state) => state.aiRepairProgress);
+    const showLevelTransition = useGameStore((state) => state.showLevelTransition);
+    const pendingLevel = useGameStore((state) => state.pendingLevel);
+    const completeLevelTransition = useGameStore((state) => state.completeLevelTransition);
 
     const handlePuzzleComplete = useCallback((synapseId: string, targetNeuronId: string) => {
         // Activate synapse and neuron
@@ -81,10 +94,18 @@ function UIOverlays() {
         setExplorerPosition(targetNeuronId);
         addToExplorerPath(targetNeuronId);
 
-        // Check victory
+        // Check if reached core neuron - advance to next level
         if (networkData && targetNeuronId === networkData.coreNeuronId) {
-            useGameStore.getState().addMessage('VICTOIRE ! Noyau atteint !', 'success');
-            useGameStore.getState().setGameOver(true);
+            const currentLevel = useGameStore.getState().currentLevel;
+            if (currentLevel >= 3) {
+                // Final level complete - victory!
+                useGameStore.getState().addMessage('VICTOIRE ! Tous les niveaux complétés !', 'success');
+                useGameStore.getState().setGameOver(true);
+            } else {
+                // Advance to next level
+                useGameStore.getState().addMessage(`Niveau ${currentLevel} terminé ! Passage au niveau ${currentLevel + 1}`, 'success');
+                useGameStore.getState().advanceLevel();
+            }
         } else {
             useGameStore.getState().addMessage('Connexion établie !', 'success');
         }
@@ -126,6 +147,14 @@ function UIOverlays() {
 
             {/* Terminal Overlay */}
             {showTerminal && <TerminalOverlay />}
+
+            {/* Level Transition Animation */}
+            {showLevelTransition && pendingLevel && (
+                <LevelTransition
+                    level={pendingLevel}
+                    onComplete={completeLevelTransition}
+                />
+            )}
 
             {/* AI Repair Progress Bar */}
             {role === 'protector' && aiRepairProgress && (
@@ -434,6 +463,149 @@ function UIOverlays() {
                     <div style={{ color: '#ff9933', marginTop: 8, fontSize: 11 }}>
                         💡 Cliquez sur un neurone pour le détruire
                     </div>
+                </div>
+            )}
+        </>
+    );
+}
+
+// Simplified overlays for Protector (terminal-based interface)
+function ProtectorUIOverlays() {
+    const networkData = useGameStore((state) => state.networkData);
+    const isGameOver = useGameStore((state) => state.isGameOver);
+    const isVictory = useGameStore((state) => state.isVictory);
+    const reset = useGameStore((state) => state.reset);
+    const showLevelTransition = useGameStore((state) => state.showLevelTransition);
+    const pendingLevel = useGameStore((state) => state.pendingLevel);
+    const completeLevelTransition = useGameStore((state) => state.completeLevelTransition);
+    const setNetworkData = useGameStore((state) => state.setNetworkData);
+    const unlockSynapse = useGameStore((state) => state.unlockSynapse);
+
+    // Listen for network data from explorer
+    useEffect(() => {
+        const handleNetworkData = (data: any) => {
+            setNetworkData(data);
+        };
+
+        const handleSynapseUnlocked = (data: { synapseId: string }) => {
+            unlockSynapse(data.synapseId);
+        };
+
+        EventBus.on('network-data-received', handleNetworkData);
+        EventBus.on('network-synapse-unlocked', handleSynapseUnlocked);
+
+        // Request game state if explorer is already connected
+        NetworkManager.getInstance().requestGameState();
+
+        return () => {
+            EventBus.off('network-data-received', handleNetworkData);
+            EventBus.off('network-synapse-unlocked', handleSynapseUnlocked);
+        };
+    }, [setNetworkData, unlockSynapse]);
+
+    return (
+        <>
+            {/* Waiting Overlay for Protector */}
+            {!networkData && (
+                <div style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    background: 'rgba(0, 0, 0, 0.9)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 10000,
+                }}>
+                    <div style={{
+                        color: '#00d4aa',
+                        fontFamily: 'Courier New, monospace',
+                        fontSize: 24,
+                        marginBottom: 20,
+                        animation: 'pulse 2s infinite',
+                    }}>
+                        EN ATTENTE DE CONNEXION...
+                    </div>
+                    <div style={{
+                        color: '#666',
+                        fontFamily: 'Courier New, monospace',
+                        fontSize: 14,
+                    }}>
+                        L'explorateur doit rejoindre la partie pour générer le réseau
+                    </div>
+                    <style>{`
+                        @keyframes pulse {
+                            0%, 100% { opacity: 1; }
+                            50% { opacity: 0.5; }
+                        }
+                    `}</style>
+                </div>
+            )}
+
+            {/* Level Transition Animation */}
+            {showLevelTransition && pendingLevel && (
+                <LevelTransition
+                    level={pendingLevel}
+                    onComplete={completeLevelTransition}
+                />
+            )}
+
+            {/* Game Over Overlay */}
+            {isGameOver && (
+                <div style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    background: 'rgba(0, 0, 0, 0.95)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 10000,
+                }}>
+                    <div style={{
+                        color: isVictory ? '#00ff88' : '#ff3366',
+                        fontFamily: 'Courier New, monospace',
+                        fontSize: 48,
+                        marginBottom: 20,
+                        textShadow: isVictory
+                            ? '0 0 20px #00ff88, 0 0 40px #00ff88'
+                            : '0 0 20px #ff3366, 0 0 40px #ff3366',
+                    }}>
+                        {isVictory ? 'MISSION ACCOMPLIE' : 'ÉCHEC DE LA MISSION'}
+                    </div>
+                    <div style={{
+                        color: '#888',
+                        fontFamily: 'Courier New, monospace',
+                        fontSize: 18,
+                        marginBottom: 30,
+                    }}>
+                        {isVictory
+                            ? 'L\'explorateur a atteint le noyau grâce à votre aide !'
+                            : 'La connexion a été perdue...'}
+                    </div>
+                    <button
+                        onClick={() => {
+                            reset();
+                            window.location.reload();
+                        }}
+                        style={{
+                            padding: '12px 32px',
+                            background: 'transparent',
+                            border: `2px solid ${isVictory ? '#00ff88' : '#ff3366'}`,
+                            color: isVictory ? '#00ff88' : '#ff3366',
+                            fontFamily: 'Courier New, monospace',
+                            fontSize: 18,
+                            cursor: 'pointer',
+                        }}
+                    >
+                        NOUVELLE MISSION
+                    </button>
                 </div>
             )}
         </>

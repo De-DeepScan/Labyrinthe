@@ -58,8 +58,19 @@ export function NeuralNetworkOptimized({
     onNeuronClick
 }: NeuralNetworkOptimizedProps) {
     const instancedMeshRef = useRef<THREE.InstancedMesh>(null);
+    const lowOpacityMeshRef = useRef<THREE.InstancedMesh>(null);
+
+    // Split neurons into normal and low-opacity groups
+    const { normalNeurons, lowOpacityNeurons } = useMemo(() => {
+        const all = Object.values(networkData.neurons);
+        const normal = all.filter(n => !n.opacity || n.opacity >= 1);
+        const lowOpacity = all.filter(n => n.opacity && n.opacity < 1);
+        return { normalNeurons: normal, lowOpacityNeurons: lowOpacity };
+    }, [networkData.neurons]);
+
     const neuronsArray = useMemo(() => Object.values(networkData.neurons), [networkData.neurons]);
-    const neuronCount = neuronsArray.length;
+    const neuronCount = normalNeurons.length;
+    const lowOpacityCount = lowOpacityNeurons.length;
 
     // Calculate adjacent neurons (connected to explorer position)
     const adjacentNeurons = useMemo(() => {
@@ -110,16 +121,30 @@ export function NeuralNetworkOptimized({
         emissiveIntensity: 0.5,
     }), []);
 
+    // Material for low-opacity neurons (inner layer)
+    const lowOpacityMaterial = useMemo(() => new THREE.MeshStandardMaterial({
+        vertexColors: true,
+        roughness: 0.15,
+        metalness: 0.9,
+        emissive: new THREE.Color(0x4488ff),
+        emissiveIntensity: 0.15,
+        transparent: true,
+        opacity: 0.15,
+        depthWrite: false,
+    }), []);
+
     // Dummy object for matrix calculations - reused
     const dummy = useMemo(() => new THREE.Object3D(), []);
     const colorArray = useMemo(() => new Float32Array(neuronCount * 3), [neuronCount]);
+    const lowOpacityColorArray = useMemo(() => new Float32Array(lowOpacityCount * 3), [lowOpacityCount]);
     const colorAttributeRef = useRef<THREE.InstancedBufferAttribute | null>(null);
+    const lowOpacityColorAttributeRef = useRef<THREE.InstancedBufferAttribute | null>(null);
 
-    // Update instances - optimized to avoid recreating color buffer
+    // Update normal opacity instances
     useEffect(() => {
         if (!instancedMeshRef.current) return;
 
-        neuronsArray.forEach((neuron, i) => {
+        normalNeurons.forEach((neuron, i) => {
             const isVisible = visibleNeurons.has(neuron.id);
             const isAdjacent = adjacentNeurons.has(neuron.id);
             const isCurrent = neuron.id === explorerPosition;
@@ -168,14 +193,46 @@ export function NeuralNetworkOptimized({
             colorAttributeRef.current.set(colorArray);
             colorAttributeRef.current.needsUpdate = true;
         }
-    }, [neuronsArray, visibleNeurons, adjacentNeurons, explorerPosition, dummy, colorArray]);
+    }, [normalNeurons, visibleNeurons, adjacentNeurons, explorerPosition, dummy, colorArray]);
 
-    // Click handler
+    // Update low-opacity instances (inner layer)
+    useEffect(() => {
+        if (!lowOpacityMeshRef.current || lowOpacityNeurons.length === 0) return;
+
+        lowOpacityNeurons.forEach((neuron, i) => {
+            const baseSize = SIZES[neuron.type] || 1.5;
+            const variation = getNeuronVariation(neuron.id);
+            const size = baseSize * variation.sizeMultiplier * 0.8; // Slightly smaller
+
+            dummy.position.set(neuron.x, neuron.y, neuron.z);
+            dummy.scale.setScalar(size);
+            dummy.updateMatrix();
+            lowOpacityMeshRef.current!.setMatrixAt(i, dummy.matrix);
+
+            // Use hidden/dim color for inner neurons
+            const color = COLORS.hidden;
+            lowOpacityColorArray[i * 3] = color.r;
+            lowOpacityColorArray[i * 3 + 1] = color.g;
+            lowOpacityColorArray[i * 3 + 2] = color.b;
+        });
+
+        lowOpacityMeshRef.current.instanceMatrix.needsUpdate = true;
+
+        if (!lowOpacityColorAttributeRef.current) {
+            lowOpacityColorAttributeRef.current = new THREE.InstancedBufferAttribute(lowOpacityColorArray, 3);
+            lowOpacityMeshRef.current.geometry.setAttribute('color', lowOpacityColorAttributeRef.current);
+        } else {
+            lowOpacityColorAttributeRef.current.set(lowOpacityColorArray);
+            lowOpacityColorAttributeRef.current.needsUpdate = true;
+        }
+    }, [lowOpacityNeurons, dummy, lowOpacityColorArray]);
+
+    // Click handler (only for normal neurons, not inner layer)
     const handleClick = (event: THREE.Event) => {
         if (!onNeuronClick) return;
         const instanceId = (event as any).instanceId;
-        if (instanceId !== undefined && instanceId < neuronsArray.length) {
-            onNeuronClick(neuronsArray[instanceId].id);
+        if (instanceId !== undefined && instanceId < normalNeurons.length) {
+            onNeuronClick(normalNeurons[instanceId].id);
         }
     };
 
@@ -242,12 +299,20 @@ export function NeuralNetworkOptimized({
 
     return (
         <group>
-            {/* Instanced neurons */}
+            {/* Instanced neurons - normal opacity */}
             <instancedMesh
                 ref={instancedMeshRef}
                 args={[geometry, material, neuronCount]}
                 onClick={handleClick}
             />
+
+            {/* Instanced neurons - low opacity (inner layer) */}
+            {lowOpacityCount > 0 && (
+                <instancedMesh
+                    ref={lowOpacityMeshRef}
+                    args={[geometry, lowOpacityMaterial, lowOpacityCount]}
+                />
+            )}
 
             {/* Synapses */}
             {synapseLines.map((line, i) => (

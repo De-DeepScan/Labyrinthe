@@ -8,53 +8,75 @@ interface Vector3 {
     z: number;
 }
 
-// Configuration for organic spherical network
+// Configuration for the simplified network with decorative neurons
 const CONFIG = {
-    NEURON_COUNT: 200,            // Nombre de neurones (optimisé pour performance)
-    RADIUS: 120,                  // Rayon principal de la sphère
-    MIN_DISTANCE: 8,              // Distance minimum entre neurones
-    MAX_CONNECTION_DISTANCE: 25,  // Distance max pour connexions
-    MIN_CONNECTIONS: 2,
-    MAX_CONNECTIONS: 4,
-    FORCE_ITERATIONS: 60,
-    NOISE_SCALE: 0.35,            // Quantité de bruit organique
+    MAIN_PATH_LENGTH: 4,          // Entry + 3 neurons to reach core
+    DECORATIVE_NEURON_COUNT: 1500, // Outer decorative neurons (80%-125% radius)
+    INNER_NEURON_COUNT: 800,      // Inner decorative neurons (0%-80% radius, 0.3 opacity)
+    DECORATIVE_SYNAPSE_COUNT: 300, // Decorative synapses between decorative neurons
+    DECORATIVE_SYNAPSE_MAX_DISTANCE: 60, // Max distance for decorative synapse connection
+    RADIUS: 360,                  // Radius of the sphere (3x larger)
+    MIN_DISTANCE: 12,             // Minimum distance between neurons
+    PATH_SPACING: 45,             // Spacing between main path neurons (keeps path within 50% of radius)
 };
 
 /**
- * Generates an organic 3D neural network with spherical distribution
+ * Generates a simplified 3D neural network with:
+ * - Entry neuron at the center
+ * - Only 3 intermediate neurons to the core (3 levels)
+ * - Many decorative non-connected neurons filling the space
  */
 export function generateNetwork3D(
     radius: number = CONFIG.RADIUS,
     _height?: number,
     _depth?: number,
-    neuronCount: number = CONFIG.NEURON_COUNT
+    _neuronCount?: number
 ): NeuralNetworkData3D {
-    // Generate neurons with organic spherical distribution
-    const neurons = placeNeuronsOrganic(radius, neuronCount);
+    const neurons: Neuron3D[] = [];
+    const synapses: Synapse[] = [];
 
-    // Create synapses between nearby neurons
-    const synapses = createSynapses3D(neurons);
+    // 1. Create the main path (Entry -> 3 neurons -> Core)
+    const mainPathNeurons = createMainPath(radius);
+    neurons.push(...mainPathNeurons);
 
-    // Ensure the network is connected
-    ensureConnectivity3D(neurons, synapses);
+    // 2. Create synapses for the main path
+    for (let i = 0; i < mainPathNeurons.length - 1; i++) {
+        synapses.push({
+            id: `s_${i}`,
+            fromNeuronId: mainPathNeurons[i].id,
+            toNeuronId: mainPathNeurons[i + 1].id,
+            state: SynapseState.DORMANT,
+            difficulty: i + 1, // Level 1, 2, 3
+            isUnlocked: i === 0, // First synapse is unlocked, rest must be hacked by Protector
+        });
+    }
 
-    // Assign entry and core neurons (based on spherical position)
-    const { entryId, coreId } = assignSpecialNeuronsSpherical(neurons);
+    // 3. Update connections for main path neurons
+    for (let i = 0; i < mainPathNeurons.length; i++) {
+        const neuron = mainPathNeurons[i];
+        if (i > 0) {
+            neuron.connections.push(mainPathNeurons[i - 1].id);
+        }
+        if (i < mainPathNeurons.length - 1) {
+            neuron.connections.push(mainPathNeurons[i + 1].id);
+        }
+    }
 
-    // Apply force-directed layout for organic appearance
-    applyForceDirectedLayoutOrganic(neurons, synapses, radius);
+    // 4. Add outer decorative neurons (80%-125% radius, full opacity)
+    const decorativeNeurons = createDecorativeNeurons(radius, mainPathNeurons);
+    neurons.push(...decorativeNeurons);
 
-    // Lift entire network above the grid floor (Y = 0)
+    // 5. Add inner decorative neurons (0%-80% radius, 0.3 opacity)
+    const innerNeurons = createInnerNeurons(radius, mainPathNeurons);
+    neurons.push(...innerNeurons);
+
+    // 6. Create decorative synapses between some decorative neurons (purely visual)
+    const allDecorativeNeurons = [...decorativeNeurons, ...innerNeurons];
+    const decorativeSynapses = createDecorativeSynapses(allDecorativeNeurons);
+    synapses.push(...decorativeSynapses);
+
+    // 7. Lift network above floor
     liftNetworkAboveFloor(neurons, 10);
-
-    // Update neuron connections array based on synapses
-    updateNeuronConnections3D(neurons, synapses);
-
-    // Mark junction neurons (3+ connections)
-    markJunctionNeurons3D(neurons);
-
-    // Assign puzzle difficulty to synapses based on distance from entry
-    assignSynapseDifficulty3D(neurons, synapses, entryId);
 
     // Convert to records
     const neuronRecord: Record<string, Neuron3D> = {};
@@ -63,13 +85,12 @@ export function generateNetwork3D(
     neurons.forEach((n) => (neuronRecord[n.id] = n));
     synapses.forEach((s) => (synapseRecord[s.id] = s));
 
-    // Use diameter as width/height/depth for compatibility
     const diameter = radius * 2;
     return {
         neurons: neuronRecord,
         synapses: synapseRecord,
-        entryNeuronId: entryId,
-        coreNeuronId: coreId,
+        entryNeuronId: mainPathNeurons[0].id,
+        coreNeuronId: mainPathNeurons[mainPathNeurons.length - 1].id,
         width: diameter,
         height: diameter,
         depth: diameter,
@@ -77,81 +98,48 @@ export function generateNetwork3D(
 }
 
 /**
- * Simple noise function for organic variation
+ * Create the main path: Entry (center) -> 3 intermediate neurons -> Core
  */
-function noise3D(x: number, y: number, z: number): number {
-    // Simple pseudo-random noise based on position
-    const n = Math.sin(x * 12.9898 + y * 78.233 + z * 37.719) * 43758.5453;
-    return n - Math.floor(n);
-}
-
-/**
- * Place neurons in an organic spherical distribution with natural variation
- */
-function placeNeuronsOrganic(radius: number, count: number): Neuron3D[] {
+function createMainPath(_radius: number): Neuron3D[] {
     const neurons: Neuron3D[] = [];
-    const minDistance = CONFIG.MIN_DISTANCE;
-    const noiseScale = CONFIG.NOISE_SCALE;
+    const spacing = CONFIG.PATH_SPACING;
 
-    // Use fibonacci sphere for even distribution + organic noise
-    const goldenRatio = (1 + Math.sqrt(5)) / 2;
-    const angleIncrement = Math.PI * 2 * goldenRatio;
+    // Entry neuron at center (0, 0, 0)
+    neurons.push({
+        id: 'n_entry',
+        x: 0,
+        y: 0,
+        z: 0,
+        type: NeuronType.ENTRY,
+        connections: [],
+        isActivated: true,
+        isBlocked: false,
+    });
 
-    for (let i = 0; i < count; i++) {
-        let x: number, y: number, z: number;
-        let attempts = 0;
-        const maxAttempts = 100;
+    // Create a path that spirals outward
+    // Each neuron is progressively further from center in a spiral pattern
+    const angles = [
+        { theta: Math.PI * 0.3, phi: Math.PI * 0.4 },   // Level 1
+        { theta: Math.PI * 0.7, phi: Math.PI * 0.6 },   // Level 2
+        { theta: Math.PI * 1.2, phi: Math.PI * 0.5 },   // Level 3
+        { theta: Math.PI * 1.8, phi: Math.PI * 0.3 },   // Core
+    ];
 
-        do {
-            // Fibonacci sphere distribution for base position
-            const t = i / count;
-            const inclination = Math.acos(1 - 2 * t);
-            const azimuth = angleIncrement * i;
+    for (let i = 0; i < 4; i++) {
+        const distFromCenter = spacing * (i + 1);
+        const angle = angles[i];
 
-            // Base spherical position with varying radius
-            // Inner neurons closer to center, outer ones at edge
-            const radiusVariation = 0.3 + Math.random() * 0.7;
-            const baseRadius = radius * radiusVariation;
+        const x = Math.sin(angle.phi) * Math.cos(angle.theta) * distFromCenter;
+        const y = Math.sin(angle.phi) * Math.sin(angle.theta) * distFromCenter;
+        const z = Math.cos(angle.phi) * distFromCenter;
 
-            // Add organic noise to break up the perfect sphere
-            const noiseX = (noise3D(i * 0.1, 0, 0) - 0.5) * radius * noiseScale;
-            const noiseY = (noise3D(0, i * 0.1, 0) - 0.5) * radius * noiseScale;
-            const noiseZ = (noise3D(0, 0, i * 0.1) - 0.5) * radius * noiseScale;
-
-            // Calculate position
-            x = Math.sin(inclination) * Math.cos(azimuth) * baseRadius + noiseX;
-            y = Math.sin(inclination) * Math.sin(azimuth) * baseRadius + noiseY;
-            z = Math.cos(inclination) * baseRadius + noiseZ;
-
-            // Add extra random jitter for organic feel
-            x += (Math.random() - 0.5) * 15;
-            y += (Math.random() - 0.5) * 15;
-            z += (Math.random() - 0.5) * 15;
-
-            // Create some "tendrils" extending outward
-            if (Math.random() < 0.15) {
-                const tendrilLength = radius * (0.2 + Math.random() * 0.3);
-                const tendrilDir = { x: x, y: y, z: z };
-                const len = Math.sqrt(tendrilDir.x ** 2 + tendrilDir.y ** 2 + tendrilDir.z ** 2);
-                if (len > 0) {
-                    x += (tendrilDir.x / len) * tendrilLength;
-                    y += (tendrilDir.y / len) * tendrilLength;
-                    z += (tendrilDir.z / len) * tendrilLength;
-                }
-            }
-
-            attempts++;
-        } while (
-            attempts < maxAttempts &&
-            neurons.some((n) => distance3D(n, { x, y, z }) < minDistance)
-        );
-
+        const isCore = i === 3;
         neurons.push({
-            id: `n_${neurons.length}`,
+            id: isCore ? 'n_core' : `n_path_${i}`,
             x,
             y,
             z,
-            type: NeuronType.NORMAL,
+            type: isCore ? NeuronType.CORE : NeuronType.JUNCTION,
             connections: [],
             isActivated: false,
             isBlocked: false,
@@ -161,338 +149,196 @@ function placeNeuronsOrganic(radius: number, count: number): Neuron3D[] {
     return neurons;
 }
 
-function createSynapses3D(neurons: Neuron3D[]): Synapse[] {
-    const synapses: Synapse[] = [];
-    const maxDistance = CONFIG.MAX_CONNECTION_DISTANCE;
-    let synapseId = 0;
+/**
+ * Create decorative neurons that fill the space but are NOT connected
+ */
+function createDecorativeNeurons(sphereRadius: number, mainPathNeurons: Neuron3D[]): Neuron3D[] {
+    const decorativeNeurons: Neuron3D[] = [];
+    const count = CONFIG.DECORATIVE_NEURON_COUNT;
+    const minDistance = CONFIG.MIN_DISTANCE;
 
-    for (let i = 0; i < neurons.length; i++) {
-        const neuronA = neurons[i];
+    // Golden ratio for Fibonacci sphere
+    const goldenRatio = (1 + Math.sqrt(5)) / 2;
+    const angleIncrement = Math.PI * 2 * goldenRatio;
 
-        const nearby = neurons
-            .filter((_, idx) => idx !== i)
-            .map((n) => ({ neuron: n, dist: distance3D(neuronA, n) }))
-            .filter((item) => item.dist < maxDistance)
-            .sort((a, b) => a.dist - b.dist);
+    for (let i = 0; i < count; i++) {
+        let x: number, y: number, z: number;
+        let attempts = 0;
+        const maxAttempts = 50;
 
-        // Prefer connecting to neurons in adjacent layers (by Y position)
-        const preferredNearby = nearby.sort((a, b) => {
-            const yDiffA = Math.abs(a.neuron.y - neuronA.y);
-            const yDiffB = Math.abs(b.neuron.y - neuronA.y);
-            // Prefer neurons at similar or slightly different Y levels
-            const scoreA = a.dist + yDiffA * 0.5;
-            const scoreB = b.dist + yDiffB * 0.5;
-            return scoreA - scoreB;
-        });
+        do {
+            // Fibonacci sphere distribution
+            const t = i / count;
+            const inclination = Math.acos(1 - 2 * t);
+            const azimuth = angleIncrement * i;
 
-        const connectionCount = Math.min(
-            preferredNearby.length,
-            CONFIG.MIN_CONNECTIONS +
-            Math.floor(Math.random() * (CONFIG.MAX_CONNECTIONS - CONFIG.MIN_CONNECTIONS))
+            // Varying radius - neurons pushed to outer edge (80%-125% of radius)
+            const radiusVariation = 0.8 + Math.random() * 0.45;
+            const baseRadius = sphereRadius * radiusVariation;
+
+            // Add noise for organic feel
+            const noiseX = (Math.random() - 0.5) * 20;
+            const noiseY = (Math.random() - 0.5) * 20;
+            const noiseZ = (Math.random() - 0.5) * 20;
+
+            x = Math.sin(inclination) * Math.cos(azimuth) * baseRadius + noiseX;
+            y = Math.sin(inclination) * Math.sin(azimuth) * baseRadius + noiseY;
+            z = Math.cos(inclination) * baseRadius + noiseZ;
+
+            attempts++;
+        } while (
+            attempts < maxAttempts &&
+            (
+                // Check distance from main path neurons
+                mainPathNeurons.some(n => distance3D(n, { x, y, z }) < minDistance * 2) ||
+                // Check distance from other decorative neurons
+                decorativeNeurons.some(n => distance3D(n, { x, y, z }) < minDistance)
+            )
         );
 
-        for (let j = 0; j < connectionCount; j++) {
-            const neuronB = preferredNearby[j].neuron;
+        if (attempts < maxAttempts) {
+            decorativeNeurons.push({
+                id: `n_deco_${i}`,
+                x,
+                y,
+                z,
+                type: NeuronType.NORMAL,
+                connections: [], // Not connected to anything
+                isActivated: false,
+                isBlocked: false,
+            });
+        }
+    }
 
-            const exists = synapses.some(
-                (s) =>
-                    (s.fromNeuronId === neuronA.id && s.toNeuronId === neuronB.id) ||
-                    (s.fromNeuronId === neuronB.id && s.toNeuronId === neuronA.id)
-            );
+    return decorativeNeurons;
+}
 
-            if (!exists) {
-                synapses.push({
-                    id: `s_${synapseId++}`,
-                    fromNeuronId: neuronA.id,
-                    toNeuronId: neuronB.id,
-                    state: SynapseState.DORMANT,
-                    difficulty: 1,
-                });
-            }
+/**
+ * Create inner decorative neurons (0%-80% radius) with low opacity
+ */
+function createInnerNeurons(sphereRadius: number, mainPathNeurons: Neuron3D[]): Neuron3D[] {
+    const innerNeurons: Neuron3D[] = [];
+    const count = CONFIG.INNER_NEURON_COUNT;
+    const minDistance = CONFIG.MIN_DISTANCE;
+
+    // Golden ratio for Fibonacci sphere
+    const goldenRatio = (1 + Math.sqrt(5)) / 2;
+    const angleIncrement = Math.PI * 2 * goldenRatio;
+
+    for (let i = 0; i < count; i++) {
+        let x: number, y: number, z: number;
+        let attempts = 0;
+        const maxAttempts = 50;
+
+        do {
+            // Fibonacci sphere distribution
+            const t = i / count;
+            const inclination = Math.acos(1 - 2 * t);
+            const azimuth = angleIncrement * i;
+
+            // Varying radius - inner layer (0%-80% of radius)
+            const radiusVariation = Math.random() * 0.8;
+            const baseRadius = sphereRadius * radiusVariation;
+
+            // Add noise for organic feel
+            const noiseX = (Math.random() - 0.5) * 15;
+            const noiseY = (Math.random() - 0.5) * 15;
+            const noiseZ = (Math.random() - 0.5) * 15;
+
+            x = Math.sin(inclination) * Math.cos(azimuth) * baseRadius + noiseX;
+            y = Math.sin(inclination) * Math.sin(azimuth) * baseRadius + noiseY;
+            z = Math.cos(inclination) * baseRadius + noiseZ;
+
+            attempts++;
+        } while (
+            attempts < maxAttempts &&
+            (
+                // Check distance from main path neurons
+                mainPathNeurons.some(n => distance3D(n, { x, y, z }) < minDistance * 3) ||
+                // Check distance from other inner neurons
+                innerNeurons.some(n => distance3D(n, { x, y, z }) < minDistance)
+            )
+        );
+
+        if (attempts < maxAttempts) {
+            innerNeurons.push({
+                id: `n_inner_${i}`,
+                x,
+                y,
+                z,
+                type: NeuronType.NORMAL,
+                connections: [],
+                isActivated: false,
+                isBlocked: false,
+                opacity: 0.15, // Low opacity for inner layer
+            });
+        }
+    }
+
+    return innerNeurons;
+}
+
+/**
+ * Create decorative synapses between nearby decorative neurons (purely visual)
+ */
+function createDecorativeSynapses(decorativeNeurons: Neuron3D[]): Synapse[] {
+    const synapses: Synapse[] = [];
+    const targetCount = CONFIG.DECORATIVE_SYNAPSE_COUNT;
+    const maxDistance = CONFIG.DECORATIVE_SYNAPSE_MAX_DISTANCE;
+
+    // Shuffle neurons for random selection
+    const shuffled = [...decorativeNeurons].sort(() => Math.random() - 0.5);
+    const usedPairs = new Set<string>();
+
+    let synapseIndex = 0;
+
+    for (const neuron of shuffled) {
+        if (synapses.length >= targetCount) break;
+
+        // Find nearby neurons to connect
+        const nearby = decorativeNeurons.filter(other => {
+            if (other.id === neuron.id) return false;
+            const dist = distance3D(neuron, other);
+            return dist < maxDistance && dist > 10; // Not too close, not too far
+        });
+
+        if (nearby.length === 0) continue;
+
+        // Connect to 1-3 random nearby neurons
+        const connectCount = Math.min(Math.floor(Math.random() * 3) + 1, nearby.length);
+        const shuffledNearby = nearby.sort(() => Math.random() - 0.5).slice(0, connectCount);
+
+        for (const target of shuffledNearby) {
+            if (synapses.length >= targetCount) break;
+
+            // Avoid duplicate pairs
+            const pairKey = [neuron.id, target.id].sort().join('-');
+            if (usedPairs.has(pairKey)) continue;
+            usedPairs.add(pairKey);
+
+            // Add synapse
+            synapses.push({
+                id: `s_deco_${synapseIndex++}`,
+                fromNeuronId: neuron.id,
+                toNeuronId: target.id,
+                state: SynapseState.DORMANT,
+                difficulty: 0, // Decorative - no difficulty
+                isUnlocked: true, // Decorative synapses don't need unlocking
+            });
+
+            // Update neuron connections
+            neuron.connections.push(target.id);
+            target.connections.push(neuron.id);
         }
     }
 
     return synapses;
 }
 
-function ensureConnectivity3D(neurons: Neuron3D[], synapses: Synapse[]): void {
-    const adjacency = new Map<string, Set<string>>();
-    neurons.forEach((n) => adjacency.set(n.id, new Set()));
-
-    synapses.forEach((s) => {
-        adjacency.get(s.fromNeuronId)?.add(s.toNeuronId);
-        adjacency.get(s.toNeuronId)?.add(s.fromNeuronId);
-    });
-
-    const visited = new Set<string>();
-    const components: string[][] = [];
-
-    for (const neuron of neurons) {
-        if (visited.has(neuron.id)) continue;
-
-        const component: string[] = [];
-        const queue = [neuron.id];
-
-        while (queue.length > 0) {
-            const current = queue.shift()!;
-            if (visited.has(current)) continue;
-
-            visited.add(current);
-            component.push(current);
-
-            const neighbors = adjacency.get(current) || new Set();
-            for (const neighbor of neighbors) {
-                if (!visited.has(neighbor)) {
-                    queue.push(neighbor);
-                }
-            }
-        }
-
-        components.push(component);
-    }
-
-    if (components.length > 1) {
-        const mainComponent = components[0];
-        let synapseId = synapses.length;
-
-        for (let i = 1; i < components.length; i++) {
-            let minDist = Infinity;
-            let bestPair: [string, string] | null = null;
-
-            for (const mainId of mainComponent) {
-                const mainNeuron = neurons.find((n) => n.id === mainId)!;
-                for (const otherId of components[i]) {
-                    const otherNeuron = neurons.find((n) => n.id === otherId)!;
-                    const dist = distance3D(mainNeuron, otherNeuron);
-                    if (dist < minDist) {
-                        minDist = dist;
-                        bestPair = [mainId, otherId];
-                    }
-                }
-            }
-
-            if (bestPair) {
-                synapses.push({
-                    id: `s_${synapseId++}`,
-                    fromNeuronId: bestPair[0],
-                    toNeuronId: bestPair[1],
-                    state: SynapseState.DORMANT,
-                    difficulty: 1,
-                });
-
-                mainComponent.push(...components[i]);
-            }
-        }
-    }
-}
-
-function assignSpecialNeuronsSpherical(
-    neurons: Neuron3D[]
-): { entryId: string; coreId: string } {
-    // Entry: neuron closest to one "pole" (e.g., negative Y side)
-    let entryNeuron = neurons[0];
-    let minY = Infinity;
-
-    for (const neuron of neurons) {
-        // Find neuron most "outside" on the bottom
-        const distFromCenter = Math.sqrt(neuron.x ** 2 + neuron.y ** 2 + neuron.z ** 2);
-        const score = neuron.y - distFromCenter * 0.3; // Favor lower + outer
-        if (score < minY) {
-            minY = score;
-            entryNeuron = neuron;
-        }
-    }
-    entryNeuron.type = NeuronType.ENTRY;
-    entryNeuron.isActivated = true;
-
-    // Core: neuron furthest from entry (opposite side of the network)
-    let coreNeuron = neurons[0];
-    let maxDist = 0;
-
-    for (const neuron of neurons) {
-        if (neuron.id === entryNeuron.id) continue;
-        const dist = distance3D(neuron, entryNeuron);
-        if (dist > maxDist) {
-            maxDist = dist;
-            coreNeuron = neuron;
-        }
-    }
-    coreNeuron.type = NeuronType.CORE;
-
-    return { entryId: entryNeuron.id, coreId: coreNeuron.id };
-}
-
-function applyForceDirectedLayoutOrganic(
-    neurons: Neuron3D[],
-    synapses: Synapse[],
-    radius: number
-): void {
-    const iterations = CONFIG.FORCE_ITERATIONS;
-    const repulsionStrength = 500;
-    const attractionStrength = 0.012;
-    const damping = 0.85;
-    const minMovement = 0.05;
-    // Soft boundary - neurons can exceed this but are gently pushed back
-    const softBoundary = radius * 1.3;
-
-    const connected = new Map<string, Set<string>>();
-    neurons.forEach((n) => connected.set(n.id, new Set()));
-    synapses.forEach((s) => {
-        connected.get(s.fromNeuronId)?.add(s.toNeuronId);
-        connected.get(s.toNeuronId)?.add(s.fromNeuronId);
-    });
-
-    const velocity = new Map<string, Vector3>();
-    neurons.forEach((n) => velocity.set(n.id, { x: 0, y: 0, z: 0 }));
-
-    for (let iter = 0; iter < iterations; iter++) {
-        for (const neuron of neurons) {
-            let fx = 0;
-            let fy = 0;
-            let fz = 0;
-
-            // Repulsion from nearby neurons
-            for (const other of neurons) {
-                if (other.id === neuron.id) continue;
-
-                const dx = neuron.x - other.x;
-                const dy = neuron.y - other.y;
-                const dz = neuron.z - other.z;
-                const dist = Math.max(1, Math.sqrt(dx * dx + dy * dy + dz * dz));
-
-                if (dist < 40) {
-                    const force = repulsionStrength / (dist * dist);
-                    fx += (dx / dist) * force;
-                    fy += (dy / dist) * force;
-                    fz += (dz / dist) * force;
-                }
-            }
-
-            // Attraction to connected neurons
-            const neighbors = connected.get(neuron.id) || new Set();
-            for (const neighborId of neighbors) {
-                const neighbor = neurons.find((n) => n.id === neighborId);
-                if (!neighbor) continue;
-
-                const dx = neighbor.x - neuron.x;
-                const dy = neighbor.y - neuron.y;
-                const dz = neighbor.z - neuron.z;
-
-                fx += dx * attractionStrength;
-                fy += dy * attractionStrength;
-                fz += dz * attractionStrength;
-            }
-
-            // Soft spherical boundary - push neurons back gently if too far
-            const distFromCenter = Math.sqrt(neuron.x ** 2 + neuron.y ** 2 + neuron.z ** 2);
-            if (distFromCenter > softBoundary) {
-                const pushBack = (distFromCenter - softBoundary) * 0.05;
-                fx -= (neuron.x / distFromCenter) * pushBack;
-                fy -= (neuron.y / distFromCenter) * pushBack;
-                fz -= (neuron.z / distFromCenter) * pushBack;
-            }
-
-            // Update velocity
-            const vel = velocity.get(neuron.id)!;
-            vel.x = (vel.x + fx) * damping;
-            vel.y = (vel.y + fy) * damping;
-            vel.z = (vel.z + fz) * damping;
-        }
-
-        // Apply velocities
-        let totalMovement = 0;
-        for (const neuron of neurons) {
-            // Don't move entry and core too much
-            if (neuron.type === NeuronType.ENTRY || neuron.type === NeuronType.CORE) {
-                continue;
-            }
-
-            const vel = velocity.get(neuron.id)!;
-
-            neuron.x += vel.x;
-            neuron.y += vel.y;
-            neuron.z += vel.z;
-
-            // No hard clamping - let the soft boundary do the work
-            totalMovement += Math.abs(vel.x) + Math.abs(vel.y) + Math.abs(vel.z);
-        }
-
-        if (totalMovement / neurons.length < minMovement) {
-            break;
-        }
-    }
-}
-
-function updateNeuronConnections3D(neurons: Neuron3D[], synapses: Synapse[]): void {
-    neurons.forEach((n) => (n.connections = []));
-
-    for (const synapse of synapses) {
-        const fromNeuron = neurons.find((n) => n.id === synapse.fromNeuronId);
-        const toNeuron = neurons.find((n) => n.id === synapse.toNeuronId);
-
-        if (fromNeuron && !fromNeuron.connections.includes(synapse.toNeuronId)) {
-            fromNeuron.connections.push(synapse.toNeuronId);
-        }
-        if (toNeuron && !toNeuron.connections.includes(synapse.fromNeuronId)) {
-            toNeuron.connections.push(synapse.fromNeuronId);
-        }
-    }
-}
-
-function markJunctionNeurons3D(neurons: Neuron3D[]): void {
-    for (const neuron of neurons) {
-        if (neuron.type === NeuronType.NORMAL && neuron.connections.length >= 3) {
-            neuron.type = NeuronType.JUNCTION;
-        }
-    }
-}
-
-function assignSynapseDifficulty3D(
-    neurons: Neuron3D[],
-    synapses: Synapse[],
-    entryId: string
-): void {
-    const distances = new Map<string, number>();
-    const queue: { id: string; dist: number }[] = [{ id: entryId, dist: 0 }];
-
-    while (queue.length > 0) {
-        const { id, dist } = queue.shift()!;
-        if (distances.has(id)) continue;
-        distances.set(id, dist);
-
-        const neuron = neurons.find((n) => n.id === id);
-        if (!neuron) continue;
-
-        for (const neighborId of neuron.connections) {
-            if (!distances.has(neighborId)) {
-                queue.push({ id: neighborId, dist: dist + 1 });
-            }
-        }
-    }
-
-    const maxDist = Math.max(...Array.from(distances.values()));
-
-    for (const synapse of synapses) {
-        const fromDist = distances.get(synapse.fromNeuronId) || 0;
-        const toDist = distances.get(synapse.toNeuronId) || 0;
-        const avgDist = (fromDist + toDist) / 2;
-        const relativePos = avgDist / maxDist;
-
-        if (relativePos < 0.33) {
-            synapse.difficulty = 1;
-        } else if (relativePos < 0.66) {
-            synapse.difficulty = 2;
-        } else {
-            synapse.difficulty = 3;
-        }
-    }
-}
-
 /**
  * Lift entire network so all neurons are above the grid floor
  */
 function liftNetworkAboveFloor(neurons: Neuron3D[], minHeight: number): void {
-    // Find the lowest Y position
     let minY = Infinity;
     for (const neuron of neurons) {
         if (neuron.y < minY) {
@@ -500,10 +346,8 @@ function liftNetworkAboveFloor(neurons: Neuron3D[], minHeight: number): void {
         }
     }
 
-    // Calculate offset to lift everything above minHeight
-    const offset = minHeight - minY;
+    const offset = minHeight - minY + 60; // Add extra offset to center vertically
 
-    // Apply offset to all neurons
     for (const neuron of neurons) {
         neuron.y += offset;
     }

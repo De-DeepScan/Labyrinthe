@@ -5,7 +5,6 @@ import * as THREE from 'three';
 import { useGameStore } from '../../stores/gameStore';
 import { NeuralNetworkOptimized } from '../components/NeuralNetworkOptimized';
 import { Explorer3DSimple } from '../components/Explorer3DSimple';
-import { GridFloor } from '../effects/GridFloor';
 import { generateNetwork3D } from '../../generators/NeuralNetworkGenerator3D';
 import { NetworkManager } from '../../services/NetworkManager';
 import { EventBus } from '../../EventBus';
@@ -112,6 +111,27 @@ export function ExplorerScene() {
         };
     }, []);
 
+    // Listen for synapse unlocked by protector (hacker)
+    useEffect(() => {
+        const handleSynapseUnlocked = (data: { synapseId: string }) => {
+            useGameStore.getState().unlockSynapse(data.synapseId);
+            useGameStore.getState().addMessage(`Synapse ${data.synapseId} déverrouillée par le hacker !`, 'success');
+        };
+
+        EventBus.on('network-synapse-unlocked', handleSynapseUnlocked);
+        return () => {
+            EventBus.off('network-synapse-unlocked', handleSynapseUnlocked);
+        };
+    }, []);
+
+    // Send explorer position updates periodically for the Protector's terminal
+    useEffect(() => {
+        if (!explorerPosition) return;
+
+        // Send position update to Protector
+        NetworkManager.getInstance().send('explorer-position-update', { neuronId: explorerPosition });
+    }, [explorerPosition]);
+
     // Update target position when explorer moves
     useEffect(() => {
         if (networkData && explorerPosition) {
@@ -138,19 +158,16 @@ export function ExplorerScene() {
 
     return (
         <group>
-            {/* Controls - pan disabled to keep focus on explorer */}
+            {/* Controls - pan disabled to keep focus on explorer, zoomed out more */}
             <OrbitControls
                 ref={controlsRef}
                 enablePan={false}
                 enableZoom={true}
                 enableRotate={true}
-                minDistance={20}
+                minDistance={150}
                 maxDistance={400}
                 maxPolarAngle={Math.PI / 2.1}
             />
-
-            {/* Spherical grid surrounding the network */}
-            <GridFloor radius={800} rings={24} segments={64} centerY={60} />
 
             {/* Neural Network - Optimized */}
             <NeuralNetworkOptimized
@@ -208,17 +225,24 @@ export function ExplorerScene() {
                 return;
             }
 
+            // Check if synapse is unlocked by the Protector (hacker)
+            if (!synapse.isUnlocked) {
+                useGameStore.getState().addMessage('Synapse verrouillée ! Attendez que le hacker la déverrouille.', 'warning');
+                return;
+            }
+
             // Start puzzle if synapse is dormant
             if (synapse.state === 'dormant' && !targetNeuron.isActivated) {
                 // Set synapse to solving state
                 useGameStore.getState().updateSynapseState(synapseId, 'solving');
-                // Trigger puzzle overlay
+                // Trigger puzzle overlay - difficulty based on current level
+                const currentLevel = useGameStore.getState().currentLevel;
                 useGameStore.getState().setActivePuzzle({
                     synapseId,
                     targetNeuronId: neuronId,
-                    difficulty: synapse.difficulty || 1,
+                    difficulty: currentLevel, // Use current level for puzzle difficulty
                 });
-                useGameStore.getState().addMessage('Résolution du puzzle...', 'info');
+                useGameStore.getState().addMessage(`Puzzle niveau ${currentLevel}...`, 'info');
                 return; // Don't move yet
             }
         }

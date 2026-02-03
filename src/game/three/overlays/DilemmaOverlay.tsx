@@ -17,7 +17,7 @@ export function DilemmaOverlay() {
     const dilemmaData = useGameStore((state) => state.dilemmaData) as DilemmaData | null;
     const setShowDilemma = useGameStore((state) => state.setShowDilemma);
 
-    const handleChoice = useCallback((choiceId: string) => {
+    const handleChoice = useCallback((_choiceId: string) => {
         // Ethical dilemma - choice has been made, AI already reset to start
         useGameStore.getState().addMessage('Choix effectué. L\'IA retourne à son point de départ.', 'info');
 
