@@ -276,9 +276,11 @@ export function NeuralNetworkOptimized({
                 opacity = 0.9;
                 lineWidth = 8;
             } else {
-                color = '#4a9fff';
-                opacity = isVisible ? 0.8 : 0.2;
-                lineWidth = isVisible ? 6 : 3;
+                // Decorative synapses get a slightly different color for the pulse effect
+                const isDecorative = synapse.id.startsWith('s_deco_');
+                color = isDecorative ? '#3366aa' : '#4a9fff';
+                opacity = isVisible ? 0.8 : (isDecorative ? 0.35 : 0.2);
+                lineWidth = isVisible ? 6 : (isDecorative ? 2 : 3);
             }
 
             lines.push({
@@ -325,6 +327,12 @@ export function NeuralNetworkOptimized({
                     opacity={line.opacity}
                 />
             ))}
+
+            {/* Synapse Pulse Effects - information flowing between neurons */}
+            <SynapsePulses
+                networkData={networkData}
+                visibleNeurons={visibleNeurons}
+            />
 
             {/* Subtle glow for all visible neurons */}
             <NeuronGlows
@@ -711,6 +719,197 @@ function NeuronParticles({
     });
 
     if (particleData.count === 0) return null;
+
+    return (
+        <points ref={pointsRef} geometry={geometry}>
+            <primitive object={material} ref={materialRef} attach="material" />
+        </points>
+    );
+}
+
+// Pulse shader for synapse information flow (background ambient effect)
+const pulseVertexShader = `
+    attribute float pulseProgress;
+    attribute vec3 startPos;
+    attribute vec3 endPos;
+    attribute vec3 pulseColor;
+    attribute float pulseSpeed;
+    attribute float pulsePhase;
+
+    uniform float uTime;
+
+    varying vec3 vColor;
+    varying float vAlpha;
+
+    void main() {
+        vColor = pulseColor;
+
+        // Calculate current progress along the synapse (0 to 1, looping)
+        float progress = fract(uTime * pulseSpeed + pulsePhase);
+
+        // Lerp between start and end positions
+        vec3 currentPos = mix(startPos, endPos, progress);
+
+        // Pulsing alpha - stays visible longer
+        float distFromCenter = abs(progress - 0.5) * 2.0;
+        vAlpha = (1.0 - distFromCenter * 0.5) * 0.8;
+
+        vec4 mvPosition = modelViewMatrix * vec4(currentPos, 1.0);
+        gl_Position = projectionMatrix * mvPosition;
+
+        // Small subtle particles for background ambient effect
+        gl_PointSize = 4.0 * (300.0 / -mvPosition.z);
+        gl_PointSize = clamp(gl_PointSize, 1.5, 8.0);
+    }
+`;
+
+const pulseFragmentShader = `
+    varying vec3 vColor;
+    varying float vAlpha;
+
+    void main() {
+        // Circular particle with bright glow effect
+        vec2 center = gl_PointCoord - vec2(0.5);
+        float dist = length(center);
+        if (dist > 0.5) discard;
+
+        // Soft glow falloff with very bright center
+        float alpha = vAlpha * (1.0 - dist * 0.8);
+        alpha = max(0.0, alpha);
+
+        // Very bright glow color for visibility
+        vec3 glowColor = vColor * 3.0;
+        gl_FragColor = vec4(glowColor, alpha);
+    }
+`;
+
+// Animated pulses flowing along background/decorative synapses only
+function SynapsePulses({
+    networkData,
+}: {
+    networkData: NeuralNetworkData3D;
+    visibleNeurons: Set<string>;
+}) {
+    const pointsRef = useRef<THREE.Points>(null);
+    const materialRef = useRef<THREE.ShaderMaterial>(null);
+
+    // Create pulse data for decorative synapses only (background effect)
+    const pulseData = useMemo(() => {
+        const allSynapses = Object.values(networkData.synapses);
+
+        // Only decorative synapses (background links)
+        const decorativeSynapses = allSynapses.filter(s => s.id.startsWith('s_deco_'));
+
+        // Create multiple pulses per synapse for a denser effect
+        const pulsesPerSynapse = 2;
+        const totalPulses = decorativeSynapses.length * pulsesPerSynapse;
+
+        const positions = new Float32Array(totalPulses * 3);
+        const startPositions = new Float32Array(totalPulses * 3);
+        const endPositions = new Float32Array(totalPulses * 3);
+        const colors = new Float32Array(totalPulses * 3);
+        const speeds = new Float32Array(totalPulses);
+        const phases = new Float32Array(totalPulses);
+
+        decorativeSynapses.forEach((synapse, synapseIndex) => {
+            const from = networkData.neurons[synapse.fromNeuronId];
+            const to = networkData.neurons[synapse.toNeuronId];
+            if (!from || !to) return;
+
+            for (let p = 0; p < pulsesPerSynapse; p++) {
+                const i = synapseIndex * pulsesPerSynapse + p;
+                const hash = hashString(synapse.id + p);
+
+                // Initial position (will be overridden by shader)
+                positions[i * 3] = from.x;
+                positions[i * 3 + 1] = from.y;
+                positions[i * 3 + 2] = from.z;
+
+                // Alternate direction for some pulses
+                const reverse = p % 2 === 1;
+                startPositions[i * 3] = reverse ? to.x : from.x;
+                startPositions[i * 3 + 1] = reverse ? to.y : from.y;
+                startPositions[i * 3 + 2] = reverse ? to.z : from.z;
+
+                endPositions[i * 3] = reverse ? from.x : to.x;
+                endPositions[i * 3 + 1] = reverse ? from.y : to.y;
+                endPositions[i * 3 + 2] = reverse ? from.z : to.z;
+
+                // Color - soft cyan/blue tones for ambient data flow
+                const colorChoice = hash % 4;
+                if (colorChoice === 0) {
+                    // Soft Cyan
+                    colors[i * 3] = 0.2;
+                    colors[i * 3 + 1] = 0.8;
+                    colors[i * 3 + 2] = 1.0;
+                } else if (colorChoice === 1) {
+                    // Electric Blue
+                    colors[i * 3] = 0.3;
+                    colors[i * 3 + 1] = 0.5;
+                    colors[i * 3 + 2] = 1.0;
+                } else if (colorChoice === 2) {
+                    // Turquoise
+                    colors[i * 3] = 0.0;
+                    colors[i * 3 + 1] = 0.7;
+                    colors[i * 3 + 2] = 0.8;
+                } else {
+                    // Purple-blue
+                    colors[i * 3] = 0.4;
+                    colors[i * 3 + 1] = 0.3;
+                    colors[i * 3 + 2] = 1.0;
+                }
+
+                // Speed and phase - varied for natural look
+                speeds[i] = 0.1 + (hash % 20) / 100; // 0.1 to 0.3 (slower for ambient)
+                phases[i] = (p / pulsesPerSynapse) + (hash % 100) / 100;
+            }
+        });
+
+        return {
+            positions,
+            startPositions,
+            endPositions,
+            colors,
+            speeds,
+            phases,
+            count: totalPulses
+        };
+    }, [networkData]);
+
+    // Create geometry with attributes
+    const geometry = useMemo(() => {
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.BufferAttribute(pulseData.positions, 3));
+        geo.setAttribute('startPos', new THREE.BufferAttribute(pulseData.startPositions, 3));
+        geo.setAttribute('endPos', new THREE.BufferAttribute(pulseData.endPositions, 3));
+        geo.setAttribute('pulseColor', new THREE.BufferAttribute(pulseData.colors, 3));
+        geo.setAttribute('pulseSpeed', new THREE.BufferAttribute(pulseData.speeds, 1));
+        geo.setAttribute('pulsePhase', new THREE.BufferAttribute(pulseData.phases, 1));
+        return geo;
+    }, [pulseData]);
+
+    // Shader material
+    const material = useMemo(() => {
+        return new THREE.ShaderMaterial({
+            vertexShader: pulseVertexShader,
+            fragmentShader: pulseFragmentShader,
+            uniforms: {
+                uTime: { value: 0 }
+            },
+            transparent: true,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending,
+        });
+    }, []);
+
+    // Animate pulses
+    useFrame((state) => {
+        if (materialRef.current) {
+            materialRef.current.uniforms.uTime.value = state.clock.elapsedTime;
+        }
+    });
+
+    if (pulseData.count === 0) return null;
 
     return (
         <points ref={pointsRef} geometry={geometry}>

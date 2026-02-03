@@ -11,10 +11,11 @@ interface Vector3 {
 // Configuration for the simplified network with decorative neurons
 const CONFIG = {
     MAIN_PATH_LENGTH: 4,          // Entry + 3 neurons to reach core
-    DECORATIVE_NEURON_COUNT: 1500, // Outer decorative neurons (80%-125% radius)
-    INNER_NEURON_COUNT: 800,      // Inner decorative neurons (0%-80% radius, 0.3 opacity)
-    DECORATIVE_SYNAPSE_COUNT: 300, // Decorative synapses between decorative neurons
-    DECORATIVE_SYNAPSE_MAX_DISTANCE: 60, // Max distance for decorative synapse connection
+    DECORATIVE_NEURON_COUNT: 1500, // Mid decorative neurons (80%-125% radius)
+    INNER_NEURON_COUNT: 800,      // Inner decorative neurons (0%-80% radius, 0.15 opacity)
+    OUTER_NEURON_COUNT: 1200,     // Far outer decorative neurons (110%-200% radius)
+    DECORATIVE_SYNAPSE_COUNT: 500, // Decorative synapses between decorative neurons
+    DECORATIVE_SYNAPSE_MAX_DISTANCE: 100, // Max distance for decorative synapse connection
     RADIUS: 360,                  // Radius of the sphere (3x larger)
     MIN_DISTANCE: 12,             // Minimum distance between neurons
     PATH_SPACING: 45,             // Spacing between main path neurons (keeps path within 50% of radius)
@@ -66,16 +67,20 @@ export function generateNetwork3D(
     const decorativeNeurons = createDecorativeNeurons(radius, mainPathNeurons);
     neurons.push(...decorativeNeurons);
 
-    // 5. Add inner decorative neurons (0%-80% radius, 0.3 opacity)
+    // 5. Add inner decorative neurons (0%-80% radius, 0.15 opacity)
     const innerNeurons = createInnerNeurons(radius, mainPathNeurons);
     neurons.push(...innerNeurons);
 
-    // 6. Create decorative synapses between some decorative neurons (purely visual)
-    const allDecorativeNeurons = [...decorativeNeurons, ...innerNeurons];
+    // 6. Add far outer decorative neurons (110%-200% radius, fading opacity)
+    const outerNeurons = createOuterNeurons(radius);
+    neurons.push(...outerNeurons);
+
+    // 7. Create decorative synapses between some decorative neurons (purely visual)
+    const allDecorativeNeurons = [...decorativeNeurons, ...innerNeurons, ...outerNeurons];
     const decorativeSynapses = createDecorativeSynapses(allDecorativeNeurons);
     synapses.push(...decorativeSynapses);
 
-    // 7. Lift network above floor
+    // 8. Lift network above floor
     liftNetworkAboveFloor(neurons, 10);
 
     // Convert to records
@@ -276,6 +281,71 @@ function createInnerNeurons(sphereRadius: number, mainPathNeurons: Neuron3D[]): 
     }
 
     return innerNeurons;
+}
+
+/**
+ * Create far outer decorative neurons (110%-200% radius) with varying opacity
+ */
+function createOuterNeurons(sphereRadius: number): Neuron3D[] {
+    const outerNeurons: Neuron3D[] = [];
+    const count = CONFIG.OUTER_NEURON_COUNT;
+    const minDistance = CONFIG.MIN_DISTANCE;
+
+    // Golden ratio for Fibonacci sphere
+    const goldenRatio = (1 + Math.sqrt(5)) / 2;
+    const angleIncrement = Math.PI * 2 * goldenRatio;
+
+    for (let i = 0; i < count; i++) {
+        let x: number, y: number, z: number;
+        let attempts = 0;
+        const maxAttempts = 30;
+
+        do {
+            // Fibonacci sphere distribution
+            const t = i / count;
+            const inclination = Math.acos(1 - 2 * t);
+            const azimuth = angleIncrement * i;
+
+            // Varying radius - outer layer (110%-200% of radius)
+            const radiusVariation = 1.1 + Math.random() * 0.9;
+            const baseRadius = sphereRadius * radiusVariation;
+
+            // Add noise for organic feel
+            const noiseX = (Math.random() - 0.5) * 30;
+            const noiseY = (Math.random() - 0.5) * 30;
+            const noiseZ = (Math.random() - 0.5) * 30;
+
+            x = Math.sin(inclination) * Math.cos(azimuth) * baseRadius + noiseX;
+            y = Math.sin(inclination) * Math.sin(azimuth) * baseRadius + noiseY;
+            z = Math.cos(inclination) * baseRadius + noiseZ;
+
+            attempts++;
+        } while (
+            attempts < maxAttempts &&
+            outerNeurons.some(n => distance3D(n, { x, y, z }) < minDistance)
+        );
+
+        if (attempts < maxAttempts) {
+            // Opacity decreases with distance (further = more faded)
+            const distFromCenter = Math.sqrt(x * x + y * y + z * z);
+            const normalizedDist = distFromCenter / (sphereRadius * 2);
+            const opacity = Math.max(0.05, 0.3 - normalizedDist * 0.2);
+
+            outerNeurons.push({
+                id: `n_outer_${i}`,
+                x,
+                y,
+                z,
+                type: NeuronType.NORMAL,
+                connections: [],
+                isActivated: false,
+                isBlocked: false,
+                opacity, // Fading opacity for distant neurons
+            });
+        }
+    }
+
+    return outerNeurons;
 }
 
 /**
