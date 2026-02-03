@@ -31,6 +31,26 @@ const SIZES: Record<string, number> = {
     junction: 2.2,
 };
 
+// Generate random variations for each neuron (seeded by neuron id for consistency)
+function hashString(str: string): number {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+        const char = str.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash;
+    }
+    return Math.abs(hash);
+}
+
+function getNeuronVariation(neuronId: string): { sizeMultiplier: number; opacityMultiplier: number; glowMultiplier: number } {
+    const hash = hashString(neuronId);
+    return {
+        sizeMultiplier: 0.85 + (hash % 30) / 100,      // 0.85 to 1.15
+        opacityMultiplier: 0.7 + (hash % 40) / 100,    // 0.7 to 1.1
+        glowMultiplier: 0.6 + ((hash >> 4) % 50) / 100 // 0.6 to 1.1
+    };
+}
+
 export function NeuralNetworkOptimized({
     networkData,
     showFog,
@@ -90,11 +110,12 @@ export function NeuralNetworkOptimized({
         emissiveIntensity: 0.5,
     }), []);
 
-    // Dummy object for matrix calculations
+    // Dummy object for matrix calculations - reused
     const dummy = useMemo(() => new THREE.Object3D(), []);
     const colorArray = useMemo(() => new Float32Array(neuronCount * 3), [neuronCount]);
+    const colorAttributeRef = useRef<THREE.InstancedBufferAttribute | null>(null);
 
-    // Update instances
+    // Update instances - optimized to avoid recreating color buffer
     useEffect(() => {
         if (!instancedMeshRef.current) return;
 
@@ -104,8 +125,11 @@ export function NeuralNetworkOptimized({
             const isCurrent = neuron.id === explorerPosition;
             const baseSize = SIZES[neuron.type] || 1.5;
 
-            // Adjacent neurons are slightly larger
-            const size = isCurrent ? baseSize * 1.3 : isAdjacent ? baseSize * 1.2 : baseSize;
+            // Get random variation for this neuron
+            const variation = getNeuronVariation(neuron.id);
+
+            // Adjacent neurons are slightly larger, apply random size variation
+            const size = (isCurrent ? baseSize * 1.3 : isAdjacent ? baseSize * 1.2 : baseSize) * variation.sizeMultiplier;
 
             // Position and scale
             dummy.position.set(neuron.x, neuron.y, neuron.z);
@@ -135,10 +159,15 @@ export function NeuralNetworkOptimized({
         });
 
         instancedMeshRef.current.instanceMatrix.needsUpdate = true;
-        instancedMeshRef.current.geometry.setAttribute(
-            'color',
-            new THREE.InstancedBufferAttribute(colorArray, 3)
-        );
+
+        // Reuse existing color buffer instead of creating new one
+        if (!colorAttributeRef.current) {
+            colorAttributeRef.current = new THREE.InstancedBufferAttribute(colorArray, 3);
+            instancedMeshRef.current.geometry.setAttribute('color', colorAttributeRef.current);
+        } else {
+            colorAttributeRef.current.set(colorArray);
+            colorAttributeRef.current.needsUpdate = true;
+        }
     }, [neuronsArray, visibleNeurons, adjacentNeurons, explorerPosition, dummy, colorArray]);
 
     // Click handler
@@ -179,20 +208,20 @@ export function NeuralNetworkOptimized({
             if (synapse.state === 'blocked') {
                 color = '#ff0044';
                 opacity = 1;
-                lineWidth = 3;
+                lineWidth = 10;
             } else if (isAdjacentSynapse) {
                 // Bright yellow for adjacent connections - very visible
                 color = '#ffff00';
                 opacity = 1;
-                lineWidth = 5;
+                lineWidth = 12;
             } else if (isActive) {
                 color = '#00ffcc';
                 opacity = 0.9;
-                lineWidth = 3;
+                lineWidth = 8;
             } else {
                 color = '#4a9fff';
-                opacity = isVisible ? 0.6 : 0.08;
-                lineWidth = isVisible ? 2 : 1;
+                opacity = isVisible ? 0.8 : 0.2;
+                lineWidth = isVisible ? 6 : 3;
             }
 
             lines.push({
@@ -236,6 +265,14 @@ export function NeuralNetworkOptimized({
             <NeuronGlows
                 neurons={neuronsArray}
                 visibleNeurons={visibleNeurons}
+            />
+
+            {/* Orbiting particles around neurons */}
+            <NeuronParticles
+                neurons={neuronsArray}
+                visibleNeurons={visibleNeurons}
+                adjacentNeurons={adjacentNeurons}
+                explorerPosition={explorerPosition}
             />
 
             {/* Visual highlights */}
@@ -289,69 +326,55 @@ function NeuronHighlights({
 
     return (
         <group>
-            {/* Core neuron - VERY visible with multiple glow layers */}
+            {/* Core neuron - optimized with reduced geometry resolution */}
             {coreNeuron && (
                 <group position={[coreNeuron.x, coreNeuron.y, coreNeuron.z]}>
-                    {/* Outer glow - large */}
+                    {/* Single combined glow - reduced from 3 spheres */}
                     <mesh>
-                        <sphereGeometry args={[12, 16, 16]} />
-                        <meshBasicMaterial color="#ff00ff" transparent opacity={0.15} side={THREE.BackSide} />
-                    </mesh>
-                    {/* Medium glow */}
-                    <mesh>
-                        <sphereGeometry args={[8, 16, 16]} />
-                        <meshBasicMaterial color="#ff44ff" transparent opacity={0.25} side={THREE.BackSide} />
-                    </mesh>
-                    {/* Inner glow */}
-                    <mesh>
-                        <sphereGeometry args={[5, 16, 16]} />
-                        <meshBasicMaterial color="#ff88ff" transparent opacity={0.4} side={THREE.BackSide} />
+                        <sphereGeometry args={[10, 8, 8]} />
+                        <meshBasicMaterial color="#ff00ff" transparent opacity={0.2} side={THREE.BackSide} />
                     </mesh>
                     {/* Core pulse ring */}
                     <mesh ref={(el) => { if (el) ringRefs.current[100] = el; }}>
-                        <ringGeometry args={[6, 7, 32]} />
+                        <ringGeometry args={[6, 7, 16]} />
                         <meshBasicMaterial color="#ff00ff" transparent opacity={0.8} side={THREE.DoubleSide} />
                     </mesh>
                 </group>
             )}
 
-            {/* Entry neuron glow */}
+            {/* Entry neuron glow - reduced resolution */}
             {neurons.find(n => n.type === 'entry') && (
                 <group position={[neurons.find(n => n.type === 'entry')!.x, neurons.find(n => n.type === 'entry')!.y, neurons.find(n => n.type === 'entry')!.z]}>
                     <mesh>
-                        <sphereGeometry args={[8, 16, 16]} />
+                        <sphereGeometry args={[8, 8, 8]} />
                         <meshBasicMaterial color="#00ff88" transparent opacity={0.2} side={THREE.BackSide} />
                     </mesh>
                 </group>
             )}
 
-            {/* Current position - bright green glow */}
+            {/* Current position - reduced resolution */}
             {explorerNeuron && (
                 <group position={[explorerNeuron.x, explorerNeuron.y, explorerNeuron.z]}>
-                    {/* Outer glow */}
                     <mesh>
-                        <sphereGeometry args={[6, 12, 12]} />
+                        <sphereGeometry args={[6, 8, 8]} />
                         <meshBasicMaterial color="#00ff00" transparent opacity={0.3} side={THREE.BackSide} />
                     </mesh>
-                    {/* Pulsing ring */}
                     <mesh ref={(el) => { if (el) ringRefs.current[0] = el; }}>
-                        <ringGeometry args={[4, 5, 32]} />
+                        <ringGeometry args={[4, 5, 16]} />
                         <meshBasicMaterial color="#00ff00" transparent opacity={0.9} side={THREE.DoubleSide} />
                     </mesh>
                 </group>
             )}
 
-            {/* Adjacent neurons - bright yellow highlights */}
-            {adjacentNeuronObjects.map((neuron, i) => (
+            {/* Adjacent neurons - limit to first 8 for performance */}
+            {adjacentNeuronObjects.slice(0, 8).map((neuron, i) => (
                 <group key={neuron.id} position={[neuron.x, neuron.y, neuron.z]}>
-                    {/* Outer glow */}
                     <mesh>
-                        <sphereGeometry args={[5, 8, 8]} />
+                        <sphereGeometry args={[5, 6, 6]} />
                         <meshBasicMaterial color="#ffff00" transparent opacity={0.25} side={THREE.BackSide} />
                     </mesh>
-                    {/* Pulsing ring */}
                     <mesh ref={(el) => { if (el) ringRefs.current[i + 1] = el; }}>
-                        <ringGeometry args={[3.5, 4, 24]} />
+                        <ringGeometry args={[3.5, 4, 12]} />
                         <meshBasicMaterial color="#ffff00" transparent opacity={0.7} side={THREE.DoubleSide} />
                     </mesh>
                 </group>
@@ -360,7 +383,7 @@ function NeuronHighlights({
     );
 }
 
-// Glow effect for all visible neurons
+// Glow effect for all visible neurons with random variations
 function NeuronGlows({
     neurons,
     visibleNeurons
@@ -369,12 +392,13 @@ function NeuronGlows({
     visibleNeurons: Set<string>;
 }) {
     const glowRef = useRef<THREE.InstancedMesh>(null);
+    const timeRef = useRef(0);
 
     const visibleNeuronsArray = useMemo(() => {
         return neurons.filter(n => visibleNeurons.has(n.id));
     }, [neurons, visibleNeurons]);
 
-    const geometry = useMemo(() => new THREE.SphereGeometry(1, 12, 12), []);
+    const geometry = useMemo(() => new THREE.SphereGeometry(1, 6, 6), []);
     const material = useMemo(() => new THREE.MeshBasicMaterial({
         color: new THREE.Color(0x4488ff),
         transparent: true,
@@ -385,12 +409,36 @@ function NeuronGlows({
 
     const dummy = useMemo(() => new THREE.Object3D(), []);
 
+    // Animate glow with random variations
+    useFrame((state) => {
+        if (!glowRef.current) return;
+        timeRef.current = state.clock.elapsedTime;
+
+        visibleNeuronsArray.forEach((neuron, i) => {
+            const variation = getNeuronVariation(neuron.id);
+            const baseSize = SIZES[neuron.type] || 2;
+
+            // Animate glow size with slight pulsing based on neuron's unique phase
+            const phase = hashString(neuron.id) % 100 / 10;
+            const pulse = 1 + Math.sin(timeRef.current * 2 + phase) * 0.15 * variation.glowMultiplier;
+            const glowSize = baseSize * 2 * variation.sizeMultiplier * pulse;
+
+            dummy.position.set(neuron.x, neuron.y, neuron.z);
+            dummy.scale.setScalar(glowSize);
+            dummy.updateMatrix();
+            glowRef.current!.setMatrixAt(i, dummy.matrix);
+        });
+
+        glowRef.current.instanceMatrix.needsUpdate = true;
+    });
+
     useEffect(() => {
         if (!glowRef.current) return;
 
         visibleNeuronsArray.forEach((neuron, i) => {
+            const variation = getNeuronVariation(neuron.id);
             const baseSize = SIZES[neuron.type] || 2;
-            const glowSize = baseSize * 2;
+            const glowSize = baseSize * 2 * variation.sizeMultiplier;
 
             dummy.position.set(neuron.x, neuron.y, neuron.z);
             dummy.scale.setScalar(glowSize);
@@ -408,5 +456,200 @@ function NeuronGlows({
             ref={glowRef}
             args={[geometry, material, visibleNeuronsArray.length]}
         />
+    );
+}
+
+// Particle shader for orbiting particles around neurons
+const particleVertexShader = `
+    attribute float particleIndex;
+    attribute vec3 neuronPosition;
+    attribute vec3 particleColor;
+    attribute float orbitRadius;
+    attribute float orbitSpeed;
+    attribute float orbitPhase;
+    attribute float verticalOffset;
+
+    uniform float uTime;
+
+    varying vec3 vColor;
+    varying float vAlpha;
+
+    void main() {
+        vColor = particleColor;
+
+        // Calculate orbital position
+        float angle = uTime * orbitSpeed + orbitPhase;
+        float vertAngle = uTime * orbitSpeed * 0.7 + orbitPhase * 2.0;
+
+        vec3 offset = vec3(
+            cos(angle) * orbitRadius,
+            sin(vertAngle) * verticalOffset,
+            sin(angle) * orbitRadius
+        );
+
+        vec3 worldPosition = neuronPosition + offset;
+
+        // Pulsing alpha based on position - brighter for visibility
+        vAlpha = 0.6 + sin(uTime * 3.0 + orbitPhase) * 0.4;
+
+        vec4 mvPosition = modelViewMatrix * vec4(worldPosition, 1.0);
+        gl_Position = projectionMatrix * mvPosition;
+
+        // Size attenuation - larger for better visibility at distance
+        gl_PointSize = 4.0 * (400.0 / -mvPosition.z);
+        gl_PointSize = clamp(gl_PointSize, 2.0, 12.0);
+    }
+`;
+
+const particleFragmentShader = `
+    varying vec3 vColor;
+    varying float vAlpha;
+
+    void main() {
+        // Circular particle with soft edge
+        vec2 center = gl_PointCoord - vec2(0.5);
+        float dist = length(center);
+        if (dist > 0.5) discard;
+
+        float alpha = vAlpha * (1.0 - dist * 2.0);
+        gl_FragColor = vec4(vColor, alpha);
+    }
+`;
+
+// Particles floating around neurons - visible on ALL neurons
+function NeuronParticles({
+    neurons,
+    visibleNeurons,
+    adjacentNeurons,
+    explorerPosition
+}: {
+    neurons: Neuron3D[];
+    visibleNeurons: Set<string>;
+    adjacentNeurons: Set<string>;
+    explorerPosition: string | null;
+}) {
+    const pointsRef = useRef<THREE.Points>(null);
+    const materialRef = useRef<THREE.ShaderMaterial>(null);
+
+    // Create particle data - 3 particles per neuron (all neurons, not just visible)
+    const particleData = useMemo(() => {
+        const particlesPerNeuron = 3;
+        const totalParticles = neurons.length * particlesPerNeuron;
+
+        const positions = new Float32Array(totalParticles * 3);
+        const neuronPositions = new Float32Array(totalParticles * 3);
+        const colors = new Float32Array(totalParticles * 3);
+        const orbitRadii = new Float32Array(totalParticles);
+        const orbitSpeeds = new Float32Array(totalParticles);
+        const orbitPhases = new Float32Array(totalParticles);
+        const verticalOffsets = new Float32Array(totalParticles);
+        const particleIndices = new Float32Array(totalParticles);
+
+        neurons.forEach((neuron, neuronIndex) => {
+            const isVisible = visibleNeurons.has(neuron.id);
+            const isAdjacent = adjacentNeurons.has(neuron.id);
+            const isCurrent = neuron.id === explorerPosition;
+            const baseSize = SIZES[neuron.type] || 2;
+
+            // Choose color based on neuron state
+            let color: THREE.Color;
+            if (isCurrent) {
+                color = COLORS.current;
+            } else if (isAdjacent) {
+                color = COLORS.adjacent;
+            } else if (neuron.isBlocked) {
+                color = COLORS.blocked;
+            } else if (!isVisible) {
+                // Dimmer color for non-visible neurons
+                color = new THREE.Color(0x2244aa);
+            } else {
+                color = COLORS[neuron.type as keyof typeof COLORS] || COLORS.normal;
+            }
+
+            const hash = hashString(neuron.id);
+
+            for (let p = 0; p < particlesPerNeuron; p++) {
+                const i = neuronIndex * particlesPerNeuron + p;
+
+                // Initial position (will be overridden by shader)
+                positions[i * 3] = neuron.x;
+                positions[i * 3 + 1] = neuron.y;
+                positions[i * 3 + 2] = neuron.z;
+
+                // Store neuron center
+                neuronPositions[i * 3] = neuron.x;
+                neuronPositions[i * 3 + 1] = neuron.y;
+                neuronPositions[i * 3 + 2] = neuron.z;
+
+                // Particle color (slightly varied, dimmer for non-visible)
+                const colorVariation = 0.8 + ((hash + p * 17) % 40) / 100;
+                const visibilityFactor = isVisible ? 1.0 : 0.4;
+                colors[i * 3] = color.r * colorVariation * visibilityFactor;
+                colors[i * 3 + 1] = color.g * colorVariation * visibilityFactor;
+                colors[i * 3 + 2] = color.b * colorVariation * visibilityFactor;
+
+                // Orbit parameters - varied per particle
+                orbitRadii[i] = baseSize * (1.5 + ((hash + p * 31) % 30) / 30);
+                orbitSpeeds[i] = 0.5 + ((hash + p * 13) % 50) / 100;
+                orbitPhases[i] = (p / particlesPerNeuron) * Math.PI * 2 + ((hash % 100) / 100) * Math.PI;
+                verticalOffsets[i] = baseSize * (0.5 + ((hash + p * 7) % 30) / 60);
+                particleIndices[i] = i;
+            }
+        });
+
+        return {
+            positions,
+            neuronPositions,
+            colors,
+            orbitRadii,
+            orbitSpeeds,
+            orbitPhases,
+            verticalOffsets,
+            particleIndices,
+            count: totalParticles
+        };
+    }, [neurons, visibleNeurons, adjacentNeurons, explorerPosition]);
+
+    // Create geometry with attributes
+    const geometry = useMemo(() => {
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.BufferAttribute(particleData.positions, 3));
+        geo.setAttribute('neuronPosition', new THREE.BufferAttribute(particleData.neuronPositions, 3));
+        geo.setAttribute('particleColor', new THREE.BufferAttribute(particleData.colors, 3));
+        geo.setAttribute('orbitRadius', new THREE.BufferAttribute(particleData.orbitRadii, 1));
+        geo.setAttribute('orbitSpeed', new THREE.BufferAttribute(particleData.orbitSpeeds, 1));
+        geo.setAttribute('orbitPhase', new THREE.BufferAttribute(particleData.orbitPhases, 1));
+        geo.setAttribute('verticalOffset', new THREE.BufferAttribute(particleData.verticalOffsets, 1));
+        geo.setAttribute('particleIndex', new THREE.BufferAttribute(particleData.particleIndices, 1));
+        return geo;
+    }, [particleData]);
+
+    // Shader material
+    const material = useMemo(() => {
+        return new THREE.ShaderMaterial({
+            vertexShader: particleVertexShader,
+            fragmentShader: particleFragmentShader,
+            uniforms: {
+                uTime: { value: 0 }
+            },
+            transparent: true,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending,
+        });
+    }, []);
+
+    // Animate particles
+    useFrame((state) => {
+        if (materialRef.current) {
+            materialRef.current.uniforms.uTime.value = state.clock.elapsedTime;
+        }
+    });
+
+    if (particleData.count === 0) return null;
+
+    return (
+        <points ref={pointsRef} geometry={geometry}>
+            <primitive object={material} ref={materialRef} attach="material" />
+        </points>
     );
 }

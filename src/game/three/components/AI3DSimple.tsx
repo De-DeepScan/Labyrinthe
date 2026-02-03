@@ -9,6 +9,9 @@ interface AI3DSimpleProps {
 export function AI3DSimple({ position }: AI3DSimpleProps) {
     const groupRef = useRef<THREE.Group>(null);
     const coreRef = useRef<THREE.Mesh>(null);
+    const outerGlowRef = useRef<THREE.Mesh>(null);
+    const middleGlowRef = useRef<THREE.Mesh>(null);
+    const innerCoreRef = useRef<THREE.Mesh>(null);
 
     const currentPos = useRef(new THREE.Vector3(...position));
     const targetPos = useRef(new THREE.Vector3(...position));
@@ -32,19 +35,41 @@ export function AI3DSimple({ position }: AI3DSimpleProps) {
             coreRef.current.rotation.y = time * 0.8;
             coreRef.current.rotation.x = time * 0.5;
         }
+
+        // Blinking effect - fast flicker
+        const blink = Math.sin(time * 8) * 0.5 + 0.5; // 0 to 1 oscillation
+        const fastBlink = Math.sin(time * 15) > 0 ? 1 : 0.6; // Sharp on/off
+        const combinedBlink = blink * 0.4 + fastBlink * 0.6;
+
+        if (outerGlowRef.current) {
+            (outerGlowRef.current.material as THREE.MeshBasicMaterial).opacity = 0.1 + combinedBlink * 0.15;
+        }
+        if (middleGlowRef.current) {
+            (middleGlowRef.current.material as THREE.MeshBasicMaterial).opacity = 0.15 + combinedBlink * 0.2;
+        }
+        if (innerCoreRef.current) {
+            (innerCoreRef.current.material as THREE.MeshBasicMaterial).opacity = 0.7 + combinedBlink * 0.3;
+        }
+        if (coreRef.current) {
+            (coreRef.current.material as THREE.MeshStandardMaterial).emissiveIntensity = 0.6 + combinedBlink * 0.8;
+        }
+
+        // Pulsing scale
+        const pulse = 1 + Math.sin(time * 4) * 0.1;
+        groupRef.current.scale.setScalar(pulse);
     });
 
     return (
         <group ref={groupRef} position={position}>
-            {/* Outer glow - large */}
-            <mesh scale={[12, 12, 12]}>
-                <sphereGeometry args={[1, 16, 16]} />
+            {/* Outer glow - large - reduced resolution */}
+            <mesh ref={outerGlowRef} scale={[12, 12, 12]}>
+                <sphereGeometry args={[1, 8, 8]} />
                 <meshBasicMaterial color="#ff0044" transparent opacity={0.15} side={THREE.BackSide} />
             </mesh>
 
-            {/* Middle glow */}
-            <mesh scale={[8, 8, 8]}>
-                <sphereGeometry args={[1, 12, 12]} />
+            {/* Middle glow - reduced resolution */}
+            <mesh ref={middleGlowRef} scale={[8, 8, 8]}>
+                <sphereGeometry args={[1, 6, 6]} />
                 <meshBasicMaterial color="#ff2255" transparent opacity={0.25} side={THREE.BackSide} />
             </mesh>
 
@@ -60,10 +85,10 @@ export function AI3DSimple({ position }: AI3DSimpleProps) {
                 />
             </mesh>
 
-            {/* Inner glowing core */}
-            <mesh>
-                <sphereGeometry args={[2, 12, 12]} />
-                <meshBasicMaterial color="#ff0000" />
+            {/* Inner glowing core - reduced resolution */}
+            <mesh ref={innerCoreRef}>
+                <sphereGeometry args={[2, 8, 8]} />
+                <meshBasicMaterial color="#ff0000" transparent opacity={1} />
             </mesh>
 
             {/* Spikes for menacing look */}

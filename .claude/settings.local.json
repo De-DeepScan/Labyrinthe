@@ -11,7 +11,8 @@
       "Bash(tree:*)",
       "Bash(npm install:*)",
       "Bash(npm run dev:*)",
-      "Bash(timeout:*)"
+      "Bash(timeout:*)",
+      "Bash(wc:*)"
     ]
   }
 }

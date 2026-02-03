@@ -268,7 +268,7 @@ export function ProtectorScene() {
     // Listen for network data from explorer
     useEffect(() => {
         // Initialize NetworkManager
-        NetworkManager.getInstance();
+        const nm = NetworkManager.getInstance();
 
         const handleNetworkData = (data: any) => {
             setNetworkData(data);
@@ -319,12 +319,97 @@ export function ProtectorScene() {
             setExplorerPosition(data.neuronId);
         };
 
+        // Handle full game state response (for reconnection after reset)
+        const handleGameStateReceived = (data: any) => {
+            console.log('Received full game state from explorer:', data);
+
+            // Apply network data
+            if (data.networkData) {
+                setNetworkData(data.networkData);
+            }
+
+            // Apply explorer position
+            if (data.explorerPosition) {
+                setExplorerPosition(data.explorerPosition);
+            }
+
+            // Apply AI state (keep same position or initialize if not set)
+            if (data.aiState && data.networkData) {
+                aiStartPositionRef.current = data.aiState.currentNeuronId;
+                setAIState({
+                    currentNeuronId: data.aiState.currentNeuronId,
+                    targetPath: data.aiState.path || [],
+                    speed: 0.2,
+                    baseSpeed: 0.2,
+                    speedMultiplier: 1,
+                    isConnected: true,
+                    moveProgress: 0,
+                });
+            } else if (data.networkData) {
+                // Initialize AI at a position far from explorer
+                const neurons = Object.values(data.networkData.neurons) as any[];
+                const explorerNeuron = data.networkData.neurons[data.explorerPosition || data.networkData.entryNeuronId];
+                let farthest = neurons[0];
+                let maxDist = 0;
+                neurons.forEach((n: any) => {
+                    if (n.id !== data.explorerPosition && n.type !== 'core' && !n.isBlocked) {
+                        const dist = Math.sqrt(
+                            Math.pow(n.x - explorerNeuron.x, 2) +
+                            Math.pow(n.y - explorerNeuron.y, 2) +
+                            Math.pow(n.z - explorerNeuron.z, 2)
+                        );
+                        if (dist > maxDist) {
+                            maxDist = dist;
+                            farthest = n;
+                        }
+                    }
+                });
+
+                aiStartPositionRef.current = farthest.id;
+                setAIState({
+                    currentNeuronId: farthest.id,
+                    targetPath: [],
+                    speed: 0.2,
+                    baseSpeed: 0.2,
+                    speedMultiplier: 1,
+                    isConnected: true,
+                    moveProgress: 0,
+                });
+            }
+
+            useGameStore.getState().addMessage('Reconnecté à la partie en cours', 'success');
+        };
+
         EventBus.on('network-data-received', handleNetworkData);
         EventBus.on('network-explorer-moved', handleExplorerMoved);
+        EventBus.on('game-state-received', handleGameStateReceived);
+
+        // Request game state if we don't have network data and partner might be connected
+        // This handles the case where protector was reset and needs to reconnect
+        // Retry every 2 seconds until we get network data
+        const requestInterval = setInterval(() => {
+            if (!useGameStore.getState().networkData) {
+                console.log('Protector requesting game state from explorer...');
+                nm.requestGameState();
+            } else {
+                clearInterval(requestInterval);
+            }
+        }, 2000);
+
+        // Initial request after 500ms
+        const initialRequestTimeout = setTimeout(() => {
+            if (!useGameStore.getState().networkData) {
+                console.log('Protector initial game state request...');
+                nm.requestGameState();
+            }
+        }, 500);
 
         return () => {
             EventBus.off('network-data-received', handleNetworkData);
             EventBus.off('network-explorer-moved', handleExplorerMoved);
+            EventBus.off('game-state-received', handleGameStateReceived);
+            clearInterval(requestInterval);
+            clearTimeout(initialRequestTimeout);
         };
     }, [setNetworkData, setExplorerPosition, setAIState]);
 
@@ -382,16 +467,18 @@ export function ProtectorScene() {
 
     return (
         <group>
-            {/* Controls */}
+            {/* Controls - restricted to stay inside the sphere */}
             <OrbitControls
                 ref={controlsRef}
                 enablePan={true}
                 enableZoom={true}
                 enableRotate={true}
                 minDistance={30}
-                maxDistance={1200}
+                maxDistance={700}
                 maxPolarAngle={Math.PI / 2.1}
             />
+            {/* Restrict camera target to stay inside sphere */}
+            <CameraConstraint controlsRef={controlsRef} maxRadius={750} />
 
             {/* Spherical grid surrounding the network */}
             <GridFloor radius={800} rings={24} segments={64} centerY={60} />
@@ -492,4 +579,37 @@ function AIPathVisualization({
             ))}
         </group>
     );
+}
+
+// Component to restrict camera/controls target inside a sphere
+function CameraConstraint({
+    controlsRef,
+    maxRadius
+}: {
+    controlsRef: React.RefObject<any>;
+    maxRadius: number;
+}) {
+    useFrame(() => {
+        if (!controlsRef.current) return;
+
+        const controls = controlsRef.current;
+        const target = controls.target as THREE.Vector3;
+        const camera = controls.object as THREE.Camera;
+
+        // Clamp target position inside sphere
+        const targetDistance = target.length();
+        if (targetDistance > maxRadius * 0.8) {
+            target.normalize().multiplyScalar(maxRadius * 0.8);
+            controls.update();
+        }
+
+        // Clamp camera position inside sphere
+        const cameraDistance = camera.position.length();
+        if (cameraDistance > maxRadius) {
+            camera.position.normalize().multiplyScalar(maxRadius);
+            controls.update();
+        }
+    });
+
+    return null;
 }

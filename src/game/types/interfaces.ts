@@ -160,6 +160,10 @@ export type PlayerRole = "explorer" | "protector" | null;
 export type NetworkMessageType =
     | "player-connected"
     | "player-connected-ack"
+    | "ping"
+    | "pong"
+    | "request-game-state"
+    | "game-state-response"
     | "network-generated"
     | "explorer-moved"
     | "synapse-activated"

@@ -125,25 +125,28 @@ function PulsingIndicator({ color }: { color: string }) {
     );
 }
 
+// Optimized: Reduced from 20 to 10 neurons, using simpler material
 function FloatingNeurons() {
     const groupRef = useRef<THREE.Group>(null);
     const neurons = useRef(
-        Array.from({ length: 20 }, () => ({
+        Array.from({ length: 10 }, (_, i) => ({
             x: (Math.random() - 0.5) * 80,
             y: Math.random() * 30 + 5,
             z: (Math.random() - 0.5) * 80,
             speed: 0.5 + Math.random() * 0.5,
-            phase: Math.random() * Math.PI * 2,
+            phase: (i / 10) * Math.PI * 2, // Deterministic phase
+            size: 0.5 + (i % 3) * 0.25, // Deterministic size
         }))
     ).current;
 
     useFrame((state) => {
         if (groupRef.current) {
+            const time = state.clock.elapsedTime;
             groupRef.current.children.forEach((child, i) => {
                 const neuron = neurons[i];
-                child.position.y = neuron.y + Math.sin(state.clock.elapsedTime * neuron.speed + neuron.phase) * 2;
-                child.rotation.x = state.clock.elapsedTime * 0.2;
-                child.rotation.y = state.clock.elapsedTime * 0.3;
+                child.position.y = neuron.y + Math.sin(time * neuron.speed + neuron.phase) * 2;
+                child.rotation.x = time * 0.2;
+                child.rotation.y = time * 0.3;
             });
         }
     });
@@ -152,13 +155,11 @@ function FloatingNeurons() {
         <group ref={groupRef}>
             {neurons.map((neuron, i) => (
                 <mesh key={i} position={[neuron.x, neuron.y, neuron.z]}>
-                    <icosahedronGeometry args={[0.5 + Math.random() * 0.5, 0]} />
-                    <meshStandardMaterial
+                    <icosahedronGeometry args={[neuron.size, 0]} />
+                    <meshBasicMaterial
                         color="#00d4aa"
-                        emissive="#00d4aa"
-                        emissiveIntensity={0.3}
                         transparent
-                        opacity={0.5}
+                        opacity={0.4}
                         wireframe
                     />
                 </mesh>

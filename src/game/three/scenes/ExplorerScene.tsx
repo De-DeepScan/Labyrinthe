@@ -67,6 +67,38 @@ export function ExplorerScene() {
         };
     }, []);
 
+    // Handle explicit game state request from protector (after reset/reconnection)
+    useEffect(() => {
+        const handleGameStateRequest = () => {
+            const currentNetwork = networkDataRef.current || useGameStore.getState().networkData;
+            if (currentNetwork) {
+                const nm = NetworkManager.getInstance();
+                const state = useGameStore.getState();
+
+                // Get blocked neurons from network data
+                const blockedNeurons = Object.values(currentNetwork.neurons)
+                    .filter(n => n.isBlocked)
+                    .map(n => n.id);
+
+                nm.sendGameStateResponse({
+                    networkData: currentNetwork as any,
+                    explorerPosition: state.explorerPosition || currentNetwork.entryNeuronId,
+                    explorerPath: state.explorerPath,
+                    aiState: state.aiState ? {
+                        currentNeuronId: state.aiState.currentNeuronId,
+                        path: state.aiState.targetPath
+                    } : null,
+                    blockedNeurons,
+                });
+            }
+        };
+
+        EventBus.on('request-game-state', handleGameStateRequest);
+        return () => {
+            EventBus.off('request-game-state', handleGameStateRequest);
+        };
+    }, []);
+
     // Listen for dilemma triggered by protector (when AI catches explorer)
     useEffect(() => {
         const handleDilemmaTriggered = (data: { title: string; description: string; choices: { id: string; description: string }[] }) => {

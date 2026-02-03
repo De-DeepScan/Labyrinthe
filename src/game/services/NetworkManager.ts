@@ -119,6 +119,20 @@ export class NetworkManager {
                 EventBus.emit("partner-connected", message.data);
                 break;
 
+            case "request-game-state":
+                // Explorer receives this: send full game state back
+                this.partnerConnected = true;
+                EventBus.emit("partner-connected", message.data);
+                EventBus.emit("request-game-state", message.data);
+                break;
+
+            case "game-state-response":
+                // Protector receives this: apply full game state
+                this.partnerConnected = true;
+                EventBus.emit("partner-connected", { role: "explorer" });
+                EventBus.emit("game-state-received", message.data);
+                break;
+
             case "network-generated":
                 // Mark explorer as connected when we receive network data
                 this.partnerConnected = true;
@@ -332,6 +346,26 @@ export class NetworkManager {
      */
     sendDilemmaChoice(data: { dilemmaId: string; choiceId: string }): void {
         this.send("dilemma-choice", data);
+    }
+
+    /**
+     * Request full game state from explorer (called by protector on reconnection)
+     */
+    requestGameState(): void {
+        this.send("request-game-state", { role: this.role });
+    }
+
+    /**
+     * Send full game state response (called by explorer)
+     */
+    sendGameStateResponse(data: {
+        networkData: NeuralNetworkData;
+        explorerPosition: string;
+        explorerPath: string[];
+        aiState: { currentNeuronId: string; path: string[] } | null;
+        blockedNeurons: string[];
+    }): void {
+        this.send("game-state-response", data);
     }
 
     /**

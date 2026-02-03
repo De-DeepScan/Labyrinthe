@@ -115,7 +115,7 @@ export function TerminalOverlay() {
     }, []);
 
     // Ref to track active matrix animation interval
-    const matrixIntervalRef = useRef<NodeJS.Timeout | null>(null);
+    const matrixIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     // Stop any running matrix animation
     const stopMatrixAnimation = useCallback(() => {
@@ -391,7 +391,7 @@ Coordonnées: (${expNeuron?.x.toFixed(1)}, ${expNeuron?.y.toFixed(1)}, ${expNeur
                     overflow: 'auto',
                     padding: 16,
                     fontFamily: 'Courier New, monospace',
-                    fontSize: 13,
+                    fontSize: 16,
                 }}
             >
                 {history.map((item, i) => (
@@ -408,7 +408,7 @@ Coordonnées: (${expNeuron?.x.toFixed(1)}, ${expNeuron?.y.toFixed(1)}, ${expNeur
                             whiteSpace: 'pre-wrap',
                             marginLeft: item.command ? 16 : 0,
                             fontWeight: item.type === 'hack' ? 'bold' : 'normal',
-                            fontSize: item.type === 'hack' ? 14 : 13,
+                            fontSize: item.type === 'hack' ? 18 : 16,
                             opacity: item.type === 'hack' ? 0.9 : 1,
                         }}>
                             {item.output}
@@ -436,7 +436,7 @@ Coordonnées: (${expNeuron?.x.toFixed(1)}, ${expNeuron?.y.toFixed(1)}, ${expNeur
                         border: 'none',
                         color: '#00d4aa',
                         fontFamily: 'Courier New, monospace',
-                        fontSize: 13,
+                        fontSize: 16,
                         outline: 'none',
                     }}
                     placeholder={hackMode ? 'Tapez la commande...' : 'Entrez une commande...'}
