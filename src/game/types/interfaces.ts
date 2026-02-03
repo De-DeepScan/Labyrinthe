@@ -187,6 +187,7 @@ export type NetworkMessageType =
     | "game-won"
     | "game-lost"
     | "game-restart"
+    | "level-transition"
     | "dilemma-triggered"
     | "dilemma-choice";
 

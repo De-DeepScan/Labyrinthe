@@ -208,6 +208,10 @@ export class NetworkManager {
                 EventBus.emit("network-game-restart", message.data);
                 break;
 
+            case "level-transition":
+                EventBus.emit("network-level-transition", message.data);
+                break;
+
             case "dilemma-triggered":
                 EventBus.emit("network-dilemma-triggered", message.data);
                 break;

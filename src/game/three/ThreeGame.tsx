@@ -105,6 +105,8 @@ function UIOverlays() {
                 // Advance to next level
                 useGameStore.getState().addMessage(`Niveau ${currentLevel} terminé ! Passage au niveau ${currentLevel + 1}`, 'success');
                 useGameStore.getState().advanceLevel();
+                // Notify Protector about level transition
+                NetworkManager.getInstance().send('level-transition', { nextLevel: currentLevel + 1 });
             }
         } else {
             useGameStore.getState().addMessage('Connexion établie !', 'success');
@@ -481,6 +483,8 @@ function ProtectorUIOverlays() {
     const setNetworkData = useGameStore((state) => state.setNetworkData);
     const unlockSynapse = useGameStore((state) => state.unlockSynapse);
 
+    const triggerLevelTransition = useGameStore((state) => state.triggerLevelTransition);
+
     // Listen for network data from explorer
     useEffect(() => {
         const handleNetworkData = (data: any) => {
@@ -491,8 +495,14 @@ function ProtectorUIOverlays() {
             unlockSynapse(data.synapseId);
         };
 
+        const handleLevelTransition = (_data: { nextLevel: number }) => {
+            // Trigger level transition on Protector side
+            triggerLevelTransition();
+        };
+
         EventBus.on('network-data-received', handleNetworkData);
         EventBus.on('network-synapse-unlocked', handleSynapseUnlocked);
+        EventBus.on('network-level-transition', handleLevelTransition);
 
         // Request game state if explorer is already connected
         NetworkManager.getInstance().requestGameState();
@@ -500,8 +510,9 @@ function ProtectorUIOverlays() {
         return () => {
             EventBus.off('network-data-received', handleNetworkData);
             EventBus.off('network-synapse-unlocked', handleSynapseUnlocked);
+            EventBus.off('network-level-transition', handleLevelTransition);
         };
-    }, [setNetworkData, unlockSynapse]);
+    }, [setNetworkData, unlockSynapse, triggerLevelTransition]);
 
     return (
         <>
