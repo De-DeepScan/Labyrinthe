@@ -12,67 +12,65 @@ interface HackSequence {
     status: 'pending' | 'active' | 'success' | 'failed';
 }
 
-// Generate random hex-like character sequences
-function generateSequence(length: number): string {
-    const chars = 'ABCDEF0123456789';
-    let result = '';
-    for (let i = 0; i < length; i++) {
-        result += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return result;
+// Hacking commands by difficulty level
+const HACKING_COMMANDS = {
+    // Level 1: 5 characters, 3 sequences
+    1: [
+        'CRACK', 'BREAK', 'ENTER', 'PROBE', 'SNIFF',
+        'SPAWN', 'TRACE', 'PATCH', 'CLONE', 'FLASH',
+        'PARSE', 'QUERY', 'STACK', 'ROUTE', 'CHMOD',
+    ],
+    // Level 2: 5 characters, 3 sequences
+    2: [
+        'CRACK', 'BREAK', 'PROXY', 'SHELL', 'ADMIN',
+        'SPOOF', 'TRACE', 'PATCH', 'GRANT', 'CHOWN',
+        'FORGE', 'HIJAK', 'SNOOP', 'STEAL', 'CHMOD',
+    ],
+    // Level 3: 6 characters, 4 sequences
+    3: [
+        'BYPASS', 'TUNNEL', 'DECODE', 'CIPHER', 'BREACH',
+        'SPLICE', 'HIJACK', 'KEYLOG', 'TROJAN', 'ROOTKT',
+        'PHREEK', 'MALWAR', 'SPIDER', 'ZOMBIE', 'DAEMON',
+    ],
+};
+
+// Get random commands for a difficulty level
+function getRandomCommands(difficulty: number, count: number): string[] {
+    const commands = HACKING_COMMANDS[difficulty as keyof typeof HACKING_COMMANDS] || HACKING_COMMANDS[1];
+    const shuffled = [...commands].sort(() => Math.random() - 0.5);
+    return shuffled.slice(0, count);
 }
 
 export function HackingGame({ synapseId, difficulty, onComplete }: HackingGameProps) {
-    // Difficulty settings
-    const sequenceLength = 4 + difficulty; // 5, 6, 7 chars per sequence
-    const sequenceCount = 2 + difficulty; // 3, 4, 5 sequences
-    const timeLimit = (15 - difficulty * 2) * 1000; // 13s, 11s, 9s
+    // Difficulty settings - no time limit
+    // Level 1: 5 chars, 3 sequences
+    // Level 2: 5 chars, 3 sequences
+    // Level 3: 6 chars, 4 sequences
+    const sequenceCount = difficulty === 3 ? 4 : 3;
 
     const [sequences, setSequences] = useState<HackSequence[]>([]);
     const [currentIndex, setCurrentIndex] = useState(0);
-    const [timeRemaining, setTimeRemaining] = useState(timeLimit);
     const [gameState, setGameState] = useState<'playing' | 'success' | 'failed'>('playing');
     const [glitchEffect, setGlitchEffect] = useState(false);
     const inputRef = useRef<HTMLInputElement>(null);
 
-    // Initialize sequences
+    // Initialize sequences with meaningful commands
     useEffect(() => {
-        const newSequences: HackSequence[] = [];
-        for (let i = 0; i < sequenceCount; i++) {
-            newSequences.push({
-                chars: generateSequence(sequenceLength),
-                typed: '',
-                status: i === 0 ? 'active' : 'pending',
-            });
-        }
+        const commands = getRandomCommands(difficulty, sequenceCount);
+        const newSequences: HackSequence[] = commands.map((cmd, i) => ({
+            chars: cmd,
+            typed: '',
+            status: i === 0 ? 'active' : 'pending',
+        }));
         setSequences(newSequences);
         setCurrentIndex(0);
-        setTimeRemaining(timeLimit);
         setGameState('playing');
-    }, [sequenceLength, sequenceCount, timeLimit]);
+    }, [difficulty, sequenceCount]);
 
     // Focus input
     useEffect(() => {
         inputRef.current?.focus();
     }, [currentIndex]);
-
-    // Timer
-    useEffect(() => {
-        if (gameState !== 'playing') return;
-
-        const timer = setInterval(() => {
-            setTimeRemaining((prev) => {
-                if (prev <= 100) {
-                    setGameState('failed');
-                    setTimeout(() => onComplete(false), 1000);
-                    return 0;
-                }
-                return prev - 100;
-            });
-        }, 100);
-
-        return () => clearInterval(timer);
-    }, [gameState, onComplete]);
 
     // Handle input
     const handleInput = useCallback(
@@ -137,7 +135,6 @@ export function HackingGame({ synapseId, difficulty, onComplete }: HackingGamePr
 
     // Progress percentage
     const progress = (currentIndex / sequences.length) * 100;
-    const timeProgress = (timeRemaining / timeLimit) * 100;
 
     return (
         <div
@@ -156,7 +153,7 @@ export function HackingGame({ synapseId, difficulty, onComplete }: HackingGamePr
             <div
                 style={{
                     fontSize: '18px',
-                    marginBottom: '20px',
+                    marginBottom: '30px',
                     textTransform: 'uppercase',
                     letterSpacing: '4px',
                     color: gameState === 'failed' ? '#ff4444' : gameState === 'success' ? '#00ff00' : '#00d4aa',
@@ -167,27 +164,6 @@ export function HackingGame({ synapseId, difficulty, onComplete }: HackingGamePr
                     : gameState === 'success'
                     ? 'HACK RÉUSSI'
                     : `HACKING ${synapseId.toUpperCase()}`}
-            </div>
-
-            {/* Time bar */}
-            <div
-                style={{
-                    width: '400px',
-                    height: '6px',
-                    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                    marginBottom: '30px',
-                    position: 'relative',
-                    overflow: 'hidden',
-                }}
-            >
-                <div
-                    style={{
-                        width: `${timeProgress}%`,
-                        height: '100%',
-                        backgroundColor: timeProgress < 30 ? '#ff4444' : timeProgress < 60 ? '#ffaa00' : '#00d4aa',
-                        transition: 'width 0.1s linear, background-color 0.3s',
-                    }}
-                />
             </div>
 
             {/* Sequences display */}
@@ -305,7 +281,7 @@ export function HackingGame({ synapseId, difficulty, onComplete }: HackingGamePr
                         textAlign: 'center',
                     }}
                 >
-                    Tapez les séquences affichées pour déverrouiller la synapse
+                    Tapez les commandes pour pirater la synapse
                 </div>
             )}
 
