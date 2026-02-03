@@ -97,23 +97,6 @@ function App() {
 
     return (
         <div id="app">
-            {/* Connection indicator */}
-            <div style={{
-                position: 'fixed',
-                top: 10,
-                right: 10,
-                padding: '4px 8px',
-                background: connected ? 'rgba(0, 255, 136, 0.2)' : 'rgba(255, 51, 102, 0.2)',
-                border: `1px solid ${connected ? '#00ff88' : '#ff3366'}`,
-                borderRadius: 4,
-                fontFamily: 'Courier New, monospace',
-                fontSize: 10,
-                color: connected ? '#00ff88' : '#ff3366',
-                zIndex: 9999,
-            }}>
-                {connected ? '● BACKOFFICE' : '○ DÉCONNECTÉ'}
-            </div>
-
             <ThreeGame />
         </div>
     );

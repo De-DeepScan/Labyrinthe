@@ -9,51 +9,9 @@ export function RoleSelect3D() {
     const role = useGameStore((state) => state.role);
     const gameStarted = useGameStore((state) => state.gameStarted);
 
-    // If role is selected but game not started, show waiting screen
+    // If role is selected but game not started, show simple black screen
     if (role && !gameStarted) {
-        return (
-            <group>
-                {/* Spherical grid */}
-                <GridFloor radius={100} rings={12} segments={32} centerY={15} />
-
-                {/* Waiting message */}
-                <Text
-                    position={[0, 25, 0]}
-                    fontSize={3}
-                    color={role === 'explorer' ? '#00d4aa' : '#ff9933'}
-                    anchorX="center"
-                    anchorY="middle"
-                >
-                    {role === 'explorer' ? 'EXPLORATEUR' : 'PROTECTEUR'}
-                </Text>
-
-                <Text
-                    position={[0, 18, 0]}
-                    fontSize={2}
-                    color="#666688"
-                    anchorX="center"
-                    anchorY="middle"
-                >
-                    En attente du gamemaster...
-                </Text>
-
-                <Text
-                    position={[0, 12, 0]}
-                    fontSize={1.2}
-                    color="#444466"
-                    anchorX="center"
-                    anchorY="middle"
-                >
-                    La partie démarrera bientôt
-                </Text>
-
-                {/* Pulsing indicator */}
-                <PulsingIndicator color={role === 'explorer' ? '#00d4aa' : '#ff9933'} />
-
-                {/* Floating decorative elements */}
-                <FloatingNeurons />
-            </group>
-        );
+        return null; // Black screen - nothing rendered, canvas background is already dark
     }
 
     // No role assigned - show configuration message

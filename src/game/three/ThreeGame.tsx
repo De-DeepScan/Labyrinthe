@@ -108,8 +108,6 @@ function UIOverlays() {
                 // Notify Protector about level transition
                 NetworkManager.getInstance().send('level-transition', { nextLevel: currentLevel + 1 });
             }
-        } else {
-            useGameStore.getState().addMessage('Connexion établie !', 'success');
         }
 
         // Notify protector
@@ -126,7 +124,6 @@ function UIOverlays() {
         if (activePuzzle) {
             // Reset synapse to dormant
             useGameStore.getState().updateSynapseState(activePuzzle.synapseId, 'dormant');
-            useGameStore.getState().addMessage('Connexion annulée', 'warning');
         }
         setActivePuzzle(null);
     }, [activePuzzle, setActivePuzzle]);
@@ -228,7 +225,7 @@ function UIOverlays() {
                 </button>
             )}
 
-            {/* Waiting Overlay for Protector */}
+            {/* Waiting Overlay for Protector - Simple black screen */}
             {role === 'protector' && !networkData && (
                 <div style={{
                     position: 'fixed',
@@ -236,29 +233,9 @@ function UIOverlays() {
                     left: 0,
                     right: 0,
                     bottom: 0,
-                    background: 'rgba(0, 0, 0, 0.7)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'center',
+                    background: '#000000',
                     zIndex: 500,
-                }}>
-                    <div style={{
-                        color: '#ff9933',
-                        fontFamily: 'Courier New, monospace',
-                        fontSize: 24,
-                        marginBottom: 20,
-                    }}>
-                        ⏳ EN ATTENTE DE L'EXPLORATEUR...
-                    </div>
-                    <div style={{
-                        color: '#666',
-                        fontFamily: 'Courier New, monospace',
-                        fontSize: 14,
-                    }}>
-                        L'explorateur doit rejoindre la partie pour générer le réseau
-                    </div>
-                </div>
+                }} />
             )}
 
             {/* Game Over Overlay */}
@@ -385,88 +362,6 @@ function UIOverlays() {
                 </div>
             )}
 
-            {/* Role indicator */}
-            {role && (
-                <div style={{
-                    position: 'absolute',
-                    top: 20,
-                    left: 20,
-                    padding: '8px 16px',
-                    background: 'rgba(10, 22, 40, 0.95)',
-                    border: `2px solid ${role === 'explorer' ? '#00d4aa' : '#ff9933'}`,
-                    fontFamily: 'Courier New, monospace',
-                    color: role === 'explorer' ? '#00d4aa' : '#ff9933',
-                    fontSize: 14,
-                    zIndex: 100,
-                }}>
-                    {role === 'explorer' ? '◈ EXPLORATEUR' : '◈ PROTECTEUR'}
-                </div>
-            )}
-
-            {/* Legend for explorer */}
-            {role === 'explorer' && (
-                <div style={{
-                    position: 'absolute',
-                    bottom: 20,
-                    left: 20,
-                    padding: '12px 16px',
-                    background: 'rgba(10, 22, 40, 0.95)',
-                    border: '1px solid #00d4aa',
-                    fontFamily: 'Courier New, monospace',
-                    fontSize: 12,
-                    zIndex: 100,
-                }}>
-                    <div style={{ color: '#888', marginBottom: 8 }}>LÉGENDE</div>
-                    <div style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
-                        <div style={{ width: 12, height: 12, background: '#00ffff', borderRadius: '50%', marginRight: 8 }} />
-                        <span style={{ color: '#00ffff' }}>Position actuelle</span>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
-                        <div style={{ width: 12, height: 12, background: '#00ff88', borderRadius: '50%', marginRight: 8 }} />
-                        <span style={{ color: '#00ff88' }}>Neurones adjacents (cliquez!)</span>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
-                        <div style={{ width: 12, height: 12, background: '#ff9933', borderRadius: '50%', marginRight: 8 }} />
-                        <span style={{ color: '#ff9933' }}>Noyau (objectif)</span>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center' }}>
-                        <div style={{ width: 12, height: 12, background: '#ff3366', borderRadius: '50%', marginRight: 8 }} />
-                        <span style={{ color: '#ff3366' }}>Bloqué</span>
-                    </div>
-                </div>
-            )}
-
-            {/* Legend for protector */}
-            {role === 'protector' && networkData && (
-                <div style={{
-                    position: 'absolute',
-                    bottom: 20,
-                    left: 20,
-                    padding: '12px 16px',
-                    background: 'rgba(10, 22, 40, 0.95)',
-                    border: '1px solid #ff9933',
-                    fontFamily: 'Courier New, monospace',
-                    fontSize: 12,
-                    zIndex: 100,
-                }}>
-                    <div style={{ color: '#888', marginBottom: 8 }}>INSTRUCTIONS</div>
-                    <div style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
-                        <div style={{ width: 12, height: 12, background: '#00d4ff', borderRadius: '50%', marginRight: 8 }} />
-                        <span style={{ color: '#00d4ff' }}>Explorateur (à bloquer)</span>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
-                        <div style={{ width: 12, height: 12, background: '#ff2244', borderRadius: '50%', marginRight: 8 }} />
-                        <span style={{ color: '#ff2244' }}>IA (pourchasse l'explorateur)</span>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
-                        <div style={{ width: 12, height: 12, background: '#ff00ff', borderRadius: '50%', marginRight: 8 }} />
-                        <span style={{ color: '#ff00ff' }}>Noyau (à protéger)</span>
-                    </div>
-                    <div style={{ color: '#ff9933', marginTop: 8, fontSize: 11 }}>
-                        💡 Cliquez sur un neurone pour le détruire
-                    </div>
-                </div>
-            )}
         </>
     );
 }
@@ -516,7 +411,7 @@ function ProtectorUIOverlays() {
 
     return (
         <>
-            {/* Waiting Overlay for Protector */}
+            {/* Waiting Overlay for Protector - Simple black screen */}
             {!networkData && (
                 <div style={{
                     position: 'fixed',
@@ -524,36 +419,9 @@ function ProtectorUIOverlays() {
                     left: 0,
                     right: 0,
                     bottom: 0,
-                    background: 'rgba(0, 0, 0, 0.9)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'center',
+                    background: '#000000',
                     zIndex: 10000,
-                }}>
-                    <div style={{
-                        color: '#00d4aa',
-                        fontFamily: 'Courier New, monospace',
-                        fontSize: 24,
-                        marginBottom: 20,
-                        animation: 'pulse 2s infinite',
-                    }}>
-                        EN ATTENTE DE CONNEXION...
-                    </div>
-                    <div style={{
-                        color: '#666',
-                        fontFamily: 'Courier New, monospace',
-                        fontSize: 14,
-                    }}>
-                        L'explorateur doit rejoindre la partie pour générer le réseau
-                    </div>
-                    <style>{`
-                        @keyframes pulse {
-                            0%, 100% { opacity: 1; }
-                            50% { opacity: 0.5; }
-                        }
-                    `}</style>
-                </div>
+                }} />
             )}
 
             {/* Level Transition Animation */}

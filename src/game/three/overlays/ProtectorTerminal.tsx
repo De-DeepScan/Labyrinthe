@@ -45,12 +45,7 @@ export function ProtectorTerminal() {
         });
     }, [addLog]);
 
-    // Track explorer position changes (from local state)
-    useEffect(() => {
-        if (explorerPosition) {
-            addLog(`> Explorateur détecté: ${explorerPosition}`, 'warning');
-        }
-    }, [explorerPosition, addLog]);
+    // Track explorer position changes (from local state) - no log message
 
     // Listen for explorer position updates from network
     useEffect(() => {
@@ -78,7 +73,7 @@ export function ProtectorTerminal() {
                     }
                 }
             }
-            addLog(`> Explorateur déplacé: ${data.neuronId}`, 'info');
+            // No log message for explorer movement
         };
 
         EventBus.on('network-explorer-position-update', handleExplorerPositionUpdate);

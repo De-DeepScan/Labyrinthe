@@ -377,7 +377,6 @@ export function ProtectorScene() {
                 });
             }
 
-            useGameStore.getState().addMessage('Reconnecté à la partie en cours', 'success');
         };
 
         EventBus.on('network-data-received', handleNetworkData);
