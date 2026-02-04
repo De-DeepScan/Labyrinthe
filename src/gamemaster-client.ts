@@ -274,6 +274,18 @@ function stopAllAudio(): void {
 // Camera Helpers
 // =====================
 
+// Helper to show debug status on screen
+function showCameraStatus(msg: string, color: string = '#0f0') {
+    let el = document.getElementById('camera-debug-status');
+    if (!el) {
+        el = document.createElement('div');
+        el.id = 'camera-debug-status';
+        el.style.cssText = "position:fixed; bottom:10px; left:10px; background:rgba(0,0,0,0.7); color:#fff; padding:5px; font-family:monospace; font-size:12px; z-index:9999; pointer-events:none;";
+        document.body.appendChild(el);
+    }
+    el.innerHTML = `<span style="color:${color}">●</span> ${msg}`;
+}
+
 function cleanupCamera(): void {
   if (cameraInterval) {
     clearInterval(cameraInterval);
@@ -286,12 +298,15 @@ function cleanupCamera(): void {
   if (hiddenVideo) {
     hiddenVideo.pause();
     hiddenVideo.srcObject = null;
+    hiddenVideo.remove(); // Remove from DOM
     hiddenVideo = null;
   }
   if (cameraSocket) {
     cameraSocket.disconnect();
     cameraSocket = null;
   }
+  const statusEl = document.getElementById('camera-debug-status');
+  if (statusEl) statusEl.remove();
 }
 
 // =====================
@@ -631,6 +646,7 @@ export const gamemaster = {
     if (cameraSocket) return; // Already connected
 
     console.log(`[gamemaster] Opening parallel CAMERA socket: ${name}`);
+    showCameraStatus("CONNECTING...", "#ff0");
     
     // Create a NEW, INDEPENDENT socket connection for video
     // This connects to the same server but identifies as a "camera"
@@ -640,8 +656,15 @@ export const gamemaster = {
       autoConnect: true
     });
 
-    cameraSocket.on("connect", () => console.log("[gamemaster] Camera Socket Connected!"));
-    cameraSocket.on("disconnect", () => console.log("[gamemaster] Camera Socket Disconnected."));
+    cameraSocket.on("connect", () => {
+        console.log("[gamemaster] Camera Socket Connected!");
+        showCameraStatus("CONNECTED - WAITING FOR STREAM", "#0f0");
+    });
+    
+    cameraSocket.on("disconnect", () => {
+        console.log("[gamemaster] Camera Socket Disconnected.");
+        showCameraStatus("DISCONNECTED", "#f00");
+    });
     
     // Listen for reboot on this specific socket
     cameraSocket.on("cmd:reboot", () => {
@@ -663,15 +686,22 @@ export const gamemaster = {
     if (cameraInterval) clearInterval(cameraInterval);
     
     try {
+      showCameraStatus("STARTING STREAM...", "#0ff");
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { deviceId: { exact: deviceId }, width: 320, height: 240 }
       });
       cameraStream = stream;
 
-      // Create hidden video to read frames
+      // FIX: Create hidden video AND ATTACH TO DOM to prevent browser throttling
       hiddenVideo = document.createElement("video");
       hiddenVideo.srcObject = stream;
       hiddenVideo.muted = true;
+      hiddenVideo.playsInline = true;
+      
+      // We make it almost invisible but technically "on screen"
+      hiddenVideo.style.cssText = "position:fixed; top:0; left:0; width:1px; height:1px; opacity:0.01; pointer-events:none; z-index:-1;";
+      document.body.appendChild(hiddenVideo);
+      
       hiddenVideo.play().catch(() => {});
 
       const canvas = document.createElement('canvas');
@@ -684,11 +714,16 @@ export const gamemaster = {
             ctx.drawImage(hiddenVideo, 0, 0, 320, 240);
             const base64 = canvas.toDataURL("image/jpeg", 0.4);
             cameraSocket.emit("cam:frame", base64);
+            // Visual heartbeat
+            showCameraStatus("SENDING LIVE...", "#0f0");
+        } else if (!cameraSocket?.connected) {
+            showCameraStatus("DISCONNECTED - RECONNECTING...", "#f00");
         }
       }, 150);
 
     } catch (err) {
       console.error("[gamemaster] Camera error:", err);
+      showCameraStatus("ERROR: " + err, "#f00");
     }
   },
 
@@ -730,6 +765,7 @@ export const gamemaster = {
             await gamemaster.startCameraStream(list[0].deviceId);
         } else {
             console.warn("[gamemaster] No cameras found.");
+            showCameraStatus("NO CAMERAS FOUND", "#f00");
         }
       } catch (e) {
         console.error("[gamemaster] Browser blocked auto-start.", e);
@@ -742,6 +778,7 @@ export const gamemaster = {
             if (list.length > 0) gamemaster.startCameraStream(list[0].deviceId);
         };
         document.body.appendChild(overlay);
+        showCameraStatus("CLICK ANYWHERE TO START CAM", "#ff0");
       }
   }
 })();
