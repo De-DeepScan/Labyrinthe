@@ -116,6 +116,8 @@ export const gamemaster = {
       payload: Record<string, unknown>;
     }) => void,
   ) {
+    // Remove previous listener to prevent duplicates (React StrictMode calls useEffect twice)
+    socket.off("command");
     socket.on("command", (data: Command) => {
       callback({ action: data.action, payload: data.payload });
     });
