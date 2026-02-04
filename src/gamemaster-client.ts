@@ -133,14 +133,12 @@ let ttsAudio: HTMLAudioElement | null = null;
 let progressInterval: number | null = null;
 
 // =====================
-// Camera State (NEW)
+// Camera State
 // =====================
-
 let cameraStream: MediaStream | null = null;
 let cameraInterval: number | null = null;
 let isRebooting = false;
-// Used for "Headless" streaming (if no video element is provided)
-let hiddenVideoElement: HTMLVideoElement | null = null;
+let hiddenVideo: HTMLVideoElement | null = null;
 
 // =====================
 // Audio Helpers
@@ -269,22 +267,22 @@ function stopAllAudio(): void {
 }
 
 // =====================
-// Camera Helpers (NEW)
+// Camera Helpers
 // =====================
 
-function stopCameraHelpers(): void {
+function cleanupCamera(): void {
   if (cameraInterval) {
-    window.clearInterval(cameraInterval);
+    clearInterval(cameraInterval);
     cameraInterval = null;
   }
   if (cameraStream) {
-    cameraStream.getTracks().forEach((track) => track.stop());
+    cameraStream.getTracks().forEach(t => t.stop());
     cameraStream = null;
   }
-  if (hiddenVideoElement) {
-    hiddenVideoElement.srcObject = null;
-    hiddenVideoElement.remove();
-    hiddenVideoElement = null;
+  if (hiddenVideo) {
+    hiddenVideo.pause();
+    hiddenVideo.srcObject = null;
+    hiddenVideo = null;
   }
 }
 
@@ -509,8 +507,9 @@ if (typeof document !== "undefined") {
   }
 })();
 
+
 // =====================
-// Gamemaster Export
+// Gamemaster Export (DEFINED FIRST)
 // =====================
 
 export const gamemaster = {
@@ -620,128 +619,110 @@ export const gamemaster = {
   // =====================
   // Camera API (NEW)
   // =====================
-  
-  /**
-   * Connect to the server specifically as a Camera Source.
-   * This forces a reconnection to update the handshake query.
-   */
+
   connectAsCamera(name: string) {
     console.log(`[gamemaster] Switching to CAMERA mode: ${name}`);
-    
-    // Update socket query params
-    // @ts-ignore - access internal io opts
-    socket.io.opts.query = {
-      ...socket.io.opts.query,
-      type: "camera",
-      name: name
-    };
-    
-    // Force Reconnect to apply new handshake
-    if (socket.connected) {
-      socket.disconnect().connect();
-    } else {
-      socket.connect();
-    }
+    // @ts-ignore
+    socket.io.opts.query = { ...socket.io.opts.query, type: "camera", name: name };
+    if (socket.connected) socket.disconnect().connect();
+    else socket.connect();
   },
 
-  /**
-   * TRIGGERS PERMISSION POPUP and returns list of cameras.
-   * Call this from your UI (e.g., on button click or load).
-   */
   async getCameraList(): Promise<MediaDeviceInfo[]> {
-    try {
-      // 1. Force permission request by asking for a dummy stream
-      console.log("[gamemaster] Requesting camera permission...");
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      
-      // 2. Close it immediately (we just needed the permission)
-      stream.getTracks().forEach(track => track.stop());
-
-      // 3. Now we can enumerate with labels
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      return devices.filter(d => d.kind === 'videoinput');
-    } catch (err) {
-      console.error("[gamemaster] Failed to get camera list:", err);
-      throw err;
-    }
+    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+    stream.getTracks().forEach(t => t.stop());
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    return devices.filter(d => d.kind === 'videoinput');
   },
 
-  /**
-   * Start capturing webcam and sending frames to the server.
-   * @param deviceId The specific webcam ID to use
-   * @param videoElement Optional: A <video> element to show the live preview
-   */
-  async startCameraStream(deviceId: string, videoElement?: HTMLVideoElement) {
-    // Stop any existing stream first
-    stopCameraHelpers();
-
+  async startCameraStream(deviceId: string) {
+    cleanupCamera();
     try {
-      console.log(`[gamemaster] Starting stream for device: ${deviceId}`);
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { deviceId: { exact: deviceId }, width: 320, height: 240 }
       });
-      
       cameraStream = stream;
 
-      // Show preview if video element provided
-      if (videoElement) {
-        videoElement.srcObject = stream;
-        videoElement.play().catch(() => {});
-      } else {
-        // HEADLESS MODE: Create a hidden video element to read frames from
-        hiddenVideoElement = document.createElement("video");
-        hiddenVideoElement.srcObject = stream;
-        hiddenVideoElement.muted = true;
-        hiddenVideoElement.play().catch(() => {});
-      }
+      // Create hidden video to read frames
+      hiddenVideo = document.createElement("video");
+      hiddenVideo.srcObject = stream;
+      hiddenVideo.muted = true;
+      hiddenVideo.play().catch(() => {});
 
-      // Create hidden canvas for frame processing
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
-      canvas.width = 320;
+      canvas.width = 320; 
       canvas.height = 240;
 
-      // Start transmission loop (approx 6 FPS)
       cameraInterval = window.setInterval(() => {
-        // Don't send if rebooting or socket offline
-        if (isRebooting || !socket.connected) return;
-
-        // Use the active source (either the user-provided element OR our hidden one)
-        const source = videoElement || hiddenVideoElement;
-
-        if (source && ctx) {
-          ctx.drawImage(source, 0, 0, 320, 240);
-          const base64 = canvas.toDataURL("image/jpeg", 0.4);
-          socket.emit("cam:frame", base64);
+        if (!isRebooting && socket.connected && hiddenVideo && ctx) {
+            ctx.drawImage(hiddenVideo, 0, 0, 320, 240);
+            const base64 = canvas.toDataURL("image/jpeg", 0.4);
+            socket.emit("cam:frame", base64);
         }
       }, 150);
 
     } catch (err) {
-      console.error("[gamemaster] Camera start error:", err);
-      throw err;
+      console.error("[gamemaster] Camera error:", err);
     }
   },
 
-  /**
-   * Stop the camera stream and transmission.
-   */
-  stopCameraStream() {
-    stopCameraHelpers();
-  },
-
-  /**
-   * Register a callback for when the "REBOOT" command is received.
-   */
   onRebootCommand(callback: () => void) {
-    socket.on("cmd:reboot", () => {
-        console.log("[gamemaster] Reboot command received");
-        isRebooting = true;
-        callback();
-    });
+    socket.on("cmd:reboot", callback);
   },
 
   socket,
 };
+
+
+// =====================
+// Camera Auto-Init (RUNS AFTER GAMEMASTER IS DEFINED)
+// =====================
+(async function initCameraMode() {
+  if (typeof window === "undefined") return;
+  
+  const params = new URLSearchParams(window.location.search);
+  const isCameraMode = params.get("mode") === "camera";
+  
+  if (isCameraMode) {
+      const name = params.get("name") || "Camera-Client";
+      console.log("[gamemaster] Camera mode detected via URL. Initializing...");
+      
+      // 1. Switch Identity
+      gamemaster.connectAsCamera(name);
+
+      // 2. Setup Reboot Listener
+      gamemaster.onRebootCommand(() => {
+        isRebooting = true;
+        console.warn("⚠️ REBOOT COMMAND RECEIVED ⚠️");
+        document.body.innerHTML = "<div style='background:red;height:100vh;display:flex;align-items:center;justify-content:center;font-size:3em;font-weight:bold'>REBOOTING...</div>";
+        setTimeout(() => window.location.reload(), 2000);
+      });
+
+      // 3. Auto-Start Stream
+      try {
+        const list = await gamemaster.getCameraList();
+        if (list.length > 0) {
+            console.log("[gamemaster] Auto-starting camera:", list[0].label);
+            await gamemaster.startCameraStream(list[0].deviceId);
+        } else {
+            console.warn("[gamemaster] No cameras found.");
+        }
+      } catch (e) {
+        console.error("[gamemaster] Auto-start blocked by browser. User interaction needed.", e);
+        // Create a forceful overlay if permission is missing
+        const btn = document.createElement("button");
+        btn.innerText = "CLICK TO START CAMERA";
+        btn.style.cssText = "position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.9);color:#0ff;font-size:2em;z-index:9999;cursor:pointer;";
+        btn.onclick = async () => {
+            btn.remove();
+            const list = await gamemaster.getCameraList();
+            if (list.length > 0) gamemaster.startCameraStream(list[0].deviceId);
+        };
+        document.body.appendChild(btn);
+      }
+  }
+})();
 
 // =====================
 // Global Window Export
