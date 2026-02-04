@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { ThreeGame } from "./game/three/ThreeGame";
+import { DeepScanIdentityCard } from "./game/three/overlays/DeepScanIdentityCard";
 import { gamemaster } from "./gamemaster-client";
 import { useGameStore } from "./game/stores/gameStore";
 import "./App.css";
@@ -18,13 +19,23 @@ function App() {
     const setAIEnabled = useGameStore((state) => state.setAIEnabled);
     const reset = useGameStore((state) => state.reset);
 
+    // Check for preview mode
+    const [previewMode, setPreviewMode] = useState<string | null>(null);
+
     // Auto-assign role and start from URL parameters
     // ?role=explorer or ?role=protector
     // ?start=true to start without backoffice
+    // ?preview=deepscan to preview the DeepScan identity card
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
         const urlRole = params.get("role");
         const autoStart = params.get("start") === "true";
+        const preview = params.get("preview");
+
+        if (preview) {
+            setPreviewMode(preview);
+            return; // Don't process other params in preview mode
+        }
 
         if (urlRole === "explorer" || urlRole === "protector") {
             setRole(urlRole);
@@ -101,6 +112,15 @@ function App() {
             });
         }
     }, [isGameOver, isVictory, role]);
+
+    // Preview mode - show component directly
+    if (previewMode === "deepscan") {
+        return (
+            <div id="app">
+                <DeepScanIdentityCard />
+            </div>
+        );
+    }
 
     return (
         <div id="app">
