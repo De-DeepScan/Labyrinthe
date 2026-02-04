@@ -30,6 +30,8 @@ export function ProtectorTerminal() {
 
     const [terminalLines, setTerminalLines] = useState<TerminalLine[]>([]);
     const [glitchActive, setGlitchActive] = useState(false);
+    const [showCorruptionWarning, setShowCorruptionWarning] = useState(false);
+    const [corruptionStarted, setCorruptionStarted] = useState(false);
     const lastCorruptionWarning = useRef(0);
 
     // Add terminal log
@@ -54,16 +56,35 @@ export function ProtectorTerminal() {
         });
     }, [addLog]);
 
-    // Automatic corruption timer (AI effect)
+    // Corruption start sequence: 6s delay -> 3s warning popup -> start corruption
     useEffect(() => {
-        if (!aiEnabled) return;
+        if (!aiEnabled || corruptionStarted) return;
+
+        // Wait 6 seconds before showing warning
+        const delayTimer = setTimeout(() => {
+            setShowCorruptionWarning(true);
+
+            // After 3 seconds, hide warning and start corruption
+            setTimeout(() => {
+                setShowCorruptionWarning(false);
+                setCorruptionStarted(true);
+                addLog('> ALERTE: ARIA tente de corrompre le système!', 'error');
+            }, 3000);
+        }, 6000);
+
+        return () => clearTimeout(delayTimer);
+    }, [aiEnabled, corruptionStarted, addLog]);
+
+    // Automatic corruption timer (only after corruption has started)
+    useEffect(() => {
+        if (!aiEnabled || !corruptionStarted) return;
 
         const interval = setInterval(() => {
             addCorruption(CORRUPTION_AMOUNT);
         }, CORRUPTION_INTERVAL);
 
         return () => clearInterval(interval);
-    }, [aiEnabled, addCorruption]);
+    }, [aiEnabled, corruptionStarted, addCorruption]);
 
     // Corruption warning messages
     useEffect(() => {
@@ -531,11 +552,99 @@ export function ProtectorTerminal() {
                 />
             )}
 
-            {/* CSS for blink animation */}
+            {/* ARIA Corruption Warning Popup */}
+            {showCorruptionWarning && (
+                <div
+                    style={{
+                        position: 'fixed',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        backgroundColor: 'rgba(0, 0, 0, 0.85)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        zIndex: 1000,
+                    }}
+                >
+                    <div
+                        style={{
+                            padding: '40px 60px',
+                            border: '3px solid #ff0000',
+                            backgroundColor: 'rgba(20, 0, 0, 0.95)',
+                            textAlign: 'center',
+                            animation: 'warning-blink 0.5s infinite',
+                            boxShadow: '0 0 50px rgba(255, 0, 0, 0.5), inset 0 0 30px rgba(255, 0, 0, 0.1)',
+                        }}
+                    >
+                        <div
+                            style={{
+                                fontSize: '16px',
+                                color: '#ff0000',
+                                marginBottom: '15px',
+                                letterSpacing: '4px',
+                            }}
+                        >
+                            ▲ ALERTE INTRUSION ▲
+                        </div>
+                        <div
+                            style={{
+                                fontSize: '24px',
+                                color: '#ff4444',
+                                fontWeight: 'bold',
+                                textTransform: 'uppercase',
+                                letterSpacing: '3px',
+                                marginBottom: '15px',
+                                textShadow: '0 0 20px rgba(255, 0, 0, 0.8)',
+                            }}
+                        >
+                            ARIA
+                        </div>
+                        <div
+                            style={{
+                                fontSize: '16px',
+                                color: '#ff6666',
+                                lineHeight: '1.6',
+                            }}
+                        >
+                            tente de corrompre
+                            <br />
+                            le panneau de commande
+                        </div>
+                        <div
+                            style={{
+                                marginTop: '20px',
+                                fontSize: '12px',
+                                color: '#ff4444',
+                                animation: 'pulse-fast 0.3s infinite',
+                            }}
+                        >
+                            ● DÉFENSE ACTIVE ●
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* CSS for animations */}
             <style>{`
                 @keyframes blink {
                     0%, 50% { opacity: 1; }
                     51%, 100% { opacity: 0.3; }
+                }
+                @keyframes warning-blink {
+                    0%, 50% {
+                        border-color: #ff0000;
+                        box-shadow: 0 0 50px rgba(255, 0, 0, 0.5), inset 0 0 30px rgba(255, 0, 0, 0.1);
+                    }
+                    51%, 100% {
+                        border-color: #ff6600;
+                        box-shadow: 0 0 30px rgba(255, 100, 0, 0.3), inset 0 0 20px rgba(255, 100, 0, 0.05);
+                    }
+                }
+                @keyframes pulse-fast {
+                    0%, 100% { opacity: 1; }
+                    50% { opacity: 0.3; }
                 }
             `}</style>
         </div>
