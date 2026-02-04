@@ -26,6 +26,7 @@ export function ProtectorTerminal() {
     const currentLevel = useGameStore((s) => s.currentLevel);
     const corruptionLevel = useGameStore((s) => s.corruptionLevel);
     const addCorruption = useGameStore((s) => s.addCorruption);
+    const setCorruptionLevel = useGameStore((s) => s.setCorruptionLevel);
     const aiEnabled = useGameStore((s) => s.aiEnabled);
 
     const [terminalLines, setTerminalLines] = useState<TerminalLine[]>([]);
@@ -76,8 +77,10 @@ export function ProtectorTerminal() {
             // Reset state
             setShowCorruptionWarning(false);
             setCorruptionStarted(false);
+            // Reset corruption level to 0
+            setCorruptionLevel(0);
         }
-    }, [aiEnabled]);
+    }, [aiEnabled, setCorruptionLevel]);
 
     // Corruption start sequence: delay -> 3s warning popup -> start corruption
     // If AI was previously disabled, use 15s delay instead of 30s
