@@ -46,39 +46,41 @@ function getRandomCommands(difficulty: number, count: number): string[] {
 const GLITCH_CHARS = '!@#$%^&*()[]{}|;:,.<>?/\\~`█▓▒░▀▄▌▐■□▪▫●○◊◦';
 
 // Get a corrupted version of a character based on corruption level
-function getCorruptedChar(char: string, corruptionLevel: number, index: number, time: number): { char: string; opacity: number; glitched: boolean } {
+function getCorruptedChar(char: string, corruptionLevel: number, index: number, time: number): { char: string; opacity: number; glitched: boolean; hidden: boolean } {
     if (corruptionLevel < 20) {
-        return { char, opacity: 1, glitched: false };
+        return { char, opacity: 1, glitched: false, hidden: false };
     }
 
-    // Use a pseudo-random based on position and time for flickering effect
+    // At 20%+, characters become hidden (replaced by ?)
+    // The more corruption, the more likely to show glitch effects on top
     const seed = (index * 17 + Math.floor(time * 3)) % 100;
-    const corruptionChance = (corruptionLevel - 20) / 100; // 0 at 20%, 0.8 at 100%
+    const glitchChance = (corruptionLevel - 20) / 150; // Chance for extra glitch effects
 
-    if (seed < corruptionChance * 100) {
-        // Character is corrupted
-        const glitchType = seed % 4;
+    // Character is always hidden at 20%+
+    let displayChar = '?';
+    let opacity = 0.6;
+    let glitched = true;
+
+    // Add extra glitch effects based on corruption level
+    if (seed < glitchChance * 100) {
+        const glitchType = seed % 3;
 
         if (glitchType === 0) {
-            // Replace with glitch character
+            // Replace ? with glitch character
             const glitchIndex = (index + Math.floor(time * 5)) % GLITCH_CHARS.length;
-            return { char: GLITCH_CHARS[glitchIndex], opacity: 0.7, glitched: true };
+            displayChar = GLITCH_CHARS[glitchIndex];
+            opacity = 0.5;
         } else if (glitchType === 1) {
-            // Make character nearly invisible
-            return { char, opacity: 0.1 + Math.random() * 0.2, glitched: true };
-        } else if (glitchType === 2) {
-            // Show wrong character (shifted)
-            const shifted = String.fromCharCode(char.charCodeAt(0) + (seed % 5) - 2);
-            return { char: shifted, opacity: 0.6, glitched: true };
+            // Make completely invisible
+            displayChar = ' ';
+            opacity = 0;
         } else {
-            // Flicker between visible and invisible
-            return { char, opacity: Math.random() > 0.5 ? 1 : 0.1, glitched: true };
+            // Flicker
+            opacity = Math.random() > 0.5 ? 0.7 : 0.2;
         }
     }
 
-    // Slight opacity reduction based on corruption
-    const baseOpacity = 1 - (corruptionLevel - 20) / 200;
-    return { char, opacity: baseOpacity, glitched: false };
+    return { char: displayChar, opacity, glitched, hidden: true };
 }
 
 export function HackingGame({ synapseId, difficulty, onComplete, corruptionLevel = 0 }: HackingGameProps) {
