@@ -33,6 +33,9 @@ export function ProtectorTerminal() {
     const [showCorruptionWarning, setShowCorruptionWarning] = useState(false);
     const [corruptionStarted, setCorruptionStarted] = useState(false);
     const lastCorruptionWarning = useRef(0);
+    const corruptionDelayTimer = useRef<number | null>(null);
+    const corruptionWarningTimer = useRef<number | null>(null);
+    const hasBeenDisabled = useRef(false); // Track if AI has been disabled at least once
 
     // Add terminal log
     const addLog = useCallback((text: string, type: TerminalLine['type'] = 'info') => {
@@ -56,23 +59,55 @@ export function ProtectorTerminal() {
         });
     }, [addLog]);
 
-    // Corruption start sequence: 15s delay -> 3s warning popup -> start corruption
+    // Reset corruption state when AI is disabled - clear all timers
+    useEffect(() => {
+        if (!aiEnabled) {
+            // Mark that AI has been disabled at least once
+            hasBeenDisabled.current = true;
+            // Clear pending timers
+            if (corruptionDelayTimer.current) {
+                clearTimeout(corruptionDelayTimer.current);
+                corruptionDelayTimer.current = null;
+            }
+            if (corruptionWarningTimer.current) {
+                clearTimeout(corruptionWarningTimer.current);
+                corruptionWarningTimer.current = null;
+            }
+            // Reset state
+            setShowCorruptionWarning(false);
+            setCorruptionStarted(false);
+        }
+    }, [aiEnabled]);
+
+    // Corruption start sequence: delay -> 3s warning popup -> start corruption
+    // If AI was previously disabled, use 15s delay instead of 30s
     useEffect(() => {
         if (!aiEnabled || corruptionStarted) return;
 
-        // Wait 15 seconds before showing warning
-        const delayTimer = setTimeout(() => {
+        const delay = hasBeenDisabled.current ? 15000 : 30000;
+
+        // Wait before showing warning
+        corruptionDelayTimer.current = window.setTimeout(() => {
             setShowCorruptionWarning(true);
 
             // After 3 seconds, hide warning and start corruption
-            setTimeout(() => {
+            corruptionWarningTimer.current = window.setTimeout(() => {
                 setShowCorruptionWarning(false);
                 setCorruptionStarted(true);
                 addLog('> ALERTE: ARIA tente de corrompre le système!', 'error');
             }, 3000);
-        }, 30000);
+        }, delay);
 
-        return () => clearTimeout(delayTimer);
+        return () => {
+            if (corruptionDelayTimer.current) {
+                clearTimeout(corruptionDelayTimer.current);
+                corruptionDelayTimer.current = null;
+            }
+            if (corruptionWarningTimer.current) {
+                clearTimeout(corruptionWarningTimer.current);
+                corruptionWarningTimer.current = null;
+            }
+        };
     }, [aiEnabled, corruptionStarted, addLog]);
 
     // Automatic corruption timer (only after corruption has started)
