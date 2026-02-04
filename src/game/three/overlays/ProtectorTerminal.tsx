@@ -273,9 +273,6 @@ export function ProtectorTerminal() {
         ? `hsl(${Math.max(0, 170 - corruptionLevel * 1.5)}, 100%, ${Math.min(70, 50 + corruptionLevel / 4)}%)`
         : '#00d4aa';
 
-    // Difficulty modifier based on corruption (used in hacking game)
-    const corruptionDifficultyBonus = Math.floor(corruptionLevel / 30);
-
     return (
         <div
             style={{
@@ -417,7 +414,7 @@ export function ProtectorTerminal() {
                     {isHacking && selectedSynapse ? (
                         <HackingGame
                             synapseId={selectedSynapseId!}
-                            difficulty={Math.min(3, selectedSynapse.difficulty + corruptionDifficultyBonus)}
+                            difficulty={selectedSynapse.difficulty}
                             onComplete={handleHackComplete}
                             corruptionLevel={corruptionLevel}
                         />
