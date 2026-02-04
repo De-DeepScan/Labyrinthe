@@ -263,6 +263,15 @@ export function ProtectorTerminal() {
         }
     };
 
+    // Count unlocked synapses to determine word count for hacking
+    // 1st and 2nd synapse: 2 words, 3rd synapse: 3 words
+    const unlockedCount = mainSynapses.filter((s) => s.isUnlocked).length;
+    const getSequenceCountForHack = () => {
+        // If 0 or 1 synapse unlocked, this is 1st or 2nd → 2 words
+        // If 2+ synapses unlocked, this is 3rd → 3 words
+        return unlockedCount >= 2 ? 3 : 2;
+    };
+
     // Get synapse status display
     const getSynapseStatus = (synapse: typeof mainSynapses[0]) => {
         if (synapse.isUnlocked) {
@@ -431,6 +440,7 @@ export function ProtectorTerminal() {
                             difficulty={selectedSynapse.difficulty}
                             onComplete={handleHackComplete}
                             corruptionLevel={corruptionLevel}
+                            sequenceCount={getSequenceCountForHack()}
                         />
                     ) : selectedSynapse ? (
                         <div

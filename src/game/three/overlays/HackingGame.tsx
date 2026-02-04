@@ -5,6 +5,7 @@ interface HackingGameProps {
     difficulty: number;
     onComplete: (success: boolean) => void;
     corruptionLevel?: number; // 0-100, affects character visibility
+    sequenceCount?: number; // Override the number of words to type
 }
 
 interface HackSequence {
@@ -91,12 +92,13 @@ function getCorruptedChar(
     return { char: displayChar, opacity, glitched: true };
 }
 
-export function HackingGame({ synapseId, difficulty, onComplete, corruptionLevel = 0 }: HackingGameProps) {
+export function HackingGame({ synapseId, difficulty, onComplete, corruptionLevel = 0, sequenceCount: customSequenceCount }: HackingGameProps) {
     // Difficulty settings - no time limit
     // Level 1: 5 chars, 3 sequences
     // Level 2: 5 chars, 3 sequences
     // Level 3: 6 chars, 4 sequences
-    const sequenceCount = difficulty === 3 ? 4 : 3;
+    // Can be overridden by customSequenceCount prop
+    const sequenceCount = customSequenceCount ?? (difficulty === 3 ? 4 : 3);
 
     const [sequences, setSequences] = useState<HackSequence[]>([]);
     const [currentIndex, setCurrentIndex] = useState(0);
