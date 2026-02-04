@@ -139,6 +139,8 @@ let progressInterval: number | null = null;
 let cameraStream: MediaStream | null = null;
 let cameraInterval: number | null = null;
 let isRebooting = false;
+// Used for "Headless" streaming (if no video element is provided)
+let hiddenVideoElement: HTMLVideoElement | null = null;
 
 // =====================
 // Audio Helpers
@@ -209,10 +211,7 @@ const unlockEvents = ["click", "touchstart", "keydown"] as const;
 function addUnlockListeners(): void {
   if (typeof window === "undefined") return;
   for (const event of unlockEvents) {
-    window.addEventListener(event, doUnlockAudio, {
-      once: true,
-      passive: true,
-    });
+    window.addEventListener(event, doUnlockAudio, { once: true, passive: true });
   }
   audioLog("User interaction listeners added");
 }
@@ -281,6 +280,11 @@ function stopCameraHelpers(): void {
   if (cameraStream) {
     cameraStream.getTracks().forEach((track) => track.stop());
     cameraStream = null;
+  }
+  if (hiddenVideoElement) {
+    hiddenVideoElement.srcObject = null;
+    hiddenVideoElement.remove();
+    hiddenVideoElement = null;
   }
 }
 
@@ -515,17 +519,14 @@ export const gamemaster = {
     gameId: string,
     name: string,
     availableActions: GameAction[] = [],
-    role?: string,
+    role?: string
   ) {
     registeredData = { gameId, name, availableActions, role };
     socket.emit("register", registeredData);
   },
 
   onCommand(
-    callback: (cmd: {
-      action: string;
-      payload: Record<string, unknown>;
-    }) => void,
+    callback: (cmd: { action: string; payload: Record<string, unknown> }) => void
   ) {
     socket.on("command", (data: Command) => {
       callback({ action: data.action, payload: data.payload });
@@ -585,11 +586,7 @@ export const gamemaster = {
     audioConfig = { ...audioConfig, ...config };
     console.log("[gamemaster] Audio configured:", audioConfig);
 
-    if (
-      config.enabled &&
-      config.autoUnlock !== false &&
-      typeof window !== "undefined"
-    ) {
+    if (config.enabled && config.autoUnlock !== false && typeof window !== "undefined") {
       addUnlockListeners();
     }
 
@@ -623,27 +620,49 @@ export const gamemaster = {
   // =====================
   // Camera API (NEW)
   // =====================
-
+  
   /**
    * Connect to the server specifically as a Camera Source.
    * This forces a reconnection to update the handshake query.
    */
   connectAsCamera(name: string) {
     console.log(`[gamemaster] Switching to CAMERA mode: ${name}`);
-
+    
     // Update socket query params
     // @ts-ignore - access internal io opts
     socket.io.opts.query = {
       ...socket.io.opts.query,
       type: "camera",
-      name: name,
+      name: name
     };
-
+    
     // Force Reconnect to apply new handshake
     if (socket.connected) {
       socket.disconnect().connect();
     } else {
       socket.connect();
+    }
+  },
+
+  /**
+   * TRIGGERS PERMISSION POPUP and returns list of cameras.
+   * Call this from your UI (e.g., on button click or load).
+   */
+  async getCameraList(): Promise<MediaDeviceInfo[]> {
+    try {
+      // 1. Force permission request by asking for a dummy stream
+      console.log("[gamemaster] Requesting camera permission...");
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      
+      // 2. Close it immediately (we just needed the permission)
+      stream.getTracks().forEach(track => track.stop());
+
+      // 3. Now we can enumerate with labels
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      return devices.filter(d => d.kind === 'videoinput');
+    } catch (err) {
+      console.error("[gamemaster] Failed to get camera list:", err);
+      throw err;
     }
   },
 
@@ -659,19 +678,26 @@ export const gamemaster = {
     try {
       console.log(`[gamemaster] Starting stream for device: ${deviceId}`);
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { deviceId: { exact: deviceId }, width: 320, height: 240 },
+        video: { deviceId: { exact: deviceId }, width: 320, height: 240 }
       });
-
+      
       cameraStream = stream;
 
       // Show preview if video element provided
       if (videoElement) {
         videoElement.srcObject = stream;
+        videoElement.play().catch(() => {});
+      } else {
+        // HEADLESS MODE: Create a hidden video element to read frames from
+        hiddenVideoElement = document.createElement("video");
+        hiddenVideoElement.srcObject = stream;
+        hiddenVideoElement.muted = true;
+        hiddenVideoElement.play().catch(() => {});
       }
 
       // Create hidden canvas for frame processing
-      const canvas = document.createElement("canvas");
-      const ctx = canvas.getContext("2d");
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
       canvas.width = 320;
       canvas.height = 240;
 
@@ -680,16 +706,8 @@ export const gamemaster = {
         // Don't send if rebooting or socket offline
         if (isRebooting || !socket.connected) return;
 
-        // We need a source to draw to the canvas.
-        // If a videoElement is active, use it.
-        // If not, we need to create a temp video element to read the stream.
-        let source: CanvasImageSource | null = videoElement || null;
-
-        if (!source && cameraStream) {
-          // Fallback: If no preview element is passed, we can try to create one on the fly,
-          // or simply skip drawing. For now we assume videoElement is passed.
-          return;
-        }
+        // Use the active source (either the user-provided element OR our hidden one)
+        const source = videoElement || hiddenVideoElement;
 
         if (source && ctx) {
           ctx.drawImage(source, 0, 0, 320, 240);
@@ -697,12 +715,16 @@ export const gamemaster = {
           socket.emit("cam:frame", base64);
         }
       }, 150);
+
     } catch (err) {
       console.error("[gamemaster] Camera start error:", err);
       throw err;
     }
   },
 
+  /**
+   * Stop the camera stream and transmission.
+   */
   stopCameraStream() {
     stopCameraHelpers();
   },
@@ -712,9 +734,9 @@ export const gamemaster = {
    */
   onRebootCommand(callback: () => void) {
     socket.on("cmd:reboot", () => {
-      console.log("[gamemaster] Reboot command received");
-      isRebooting = true;
-      callback();
+        console.log("[gamemaster] Reboot command received");
+        isRebooting = true;
+        callback();
     });
   },
 
