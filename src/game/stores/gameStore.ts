@@ -111,6 +111,12 @@ interface GameState {
     aiSlowdownEndTime: number;
     setAISlowdown: (active: boolean, duration?: number) => void;
 
+    // AI Corruption state (for Protector terminal)
+    corruptionLevel: number; // 0-100
+    setCorruptionLevel: (level: number) => void;
+    addCorruption: (amount: number) => void;
+    purgeCorruption: (amount: number) => void;
+
     // Messages
     messages: Array<{ id: string; text: string; type: 'info' | 'warning' | 'success' | 'error' }>;
     addMessage: (text: string, type: 'info' | 'warning' | 'success' | 'error') => void;
@@ -375,6 +381,16 @@ export const useGameStore = create<GameState>((set, get) => ({
         }
     },
 
+    // AI Corruption state
+    corruptionLevel: 0,
+    setCorruptionLevel: (level) => set({ corruptionLevel: Math.max(0, Math.min(100, level)) }),
+    addCorruption: (amount) => set((state) => ({
+        corruptionLevel: Math.min(100, state.corruptionLevel + amount)
+    })),
+    purgeCorruption: (amount) => set((state) => ({
+        corruptionLevel: Math.max(0, state.corruptionLevel - amount)
+    })),
+
     // Messages
     messages: [],
     addMessage: (text, type) => {
@@ -415,6 +431,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         aiRepairProgress: null,
         aiSlowdownActive: false,
         aiSlowdownEndTime: 0,
+        corruptionLevel: 0,
         messages: [],
         selectedSynapseId: null,
         isHacking: false,

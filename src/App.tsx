@@ -12,6 +12,7 @@ function App() {
     const aiEnabled = useGameStore((state) => state.aiEnabled);
     const isGameOver = useGameStore((state) => state.isGameOver);
     const isVictory = useGameStore((state) => state.isVictory);
+    const corruptionLevel = useGameStore((state) => state.corruptionLevel);
     const setRole = useGameStore((state) => state.setRole);
     const setGameStarted = useGameStore((state) => state.setGameStarted);
     const setAIEnabled = useGameStore((state) => state.setAIEnabled);
@@ -71,6 +72,11 @@ function App() {
                     setAIEnabled(false);
                     useGameStore.getState().addMessage("IA désactivée", "info");
                     break;
+                case "terminal_purged":
+                    // Other game succeeded in purging the corruption
+                    useGameStore.getState().purgeCorruption(30);
+                    useGameStore.getState().addMessage("Corruption purgée par station externe!", "success");
+                    break;
             }
         });
     }, [role, reset, setGameStarted, setAIEnabled]);
@@ -83,8 +89,9 @@ function App() {
             aiEnabled,
             isGameOver,
             isVictory,
+            corruptionLevel,
         });
-    }, [role, gameStarted, aiEnabled, isGameOver, isVictory]);
+    }, [role, gameStarted, aiEnabled, isGameOver, isVictory, corruptionLevel]);
 
     // Send events on game over
     useEffect(() => {

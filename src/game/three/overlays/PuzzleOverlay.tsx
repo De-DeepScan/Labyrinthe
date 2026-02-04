@@ -31,16 +31,17 @@ interface PuzzleOverlayProps {
 
 const CELL_SIZE = 50;
 
+// Cyberpunk terminal theme colors
 const COLORS = {
-    cellBg: '#2d3748',
-    cellBorder: '#4a5568',
-    cellHover: '#4299e1',
-    pathCell: '#38a169',
-    checkpoint: '#ed8936',
-    checkpointReached: '#48bb78',
-    pathLine: '#68d391',
-    invalid: '#e53e3e',
-    textNormal: '#e2e8f0',
+    cellBg: 'rgba(0, 20, 30, 0.8)',
+    cellBorder: '#00d4aa33',
+    cellHover: '#00d4aa',
+    pathCell: '#00d4aa',
+    checkpoint: '#ff9933',
+    checkpointReached: '#00ff88',
+    pathLine: '#00ffcc',
+    invalid: '#ff3366',
+    textNormal: '#00d4aa',
     textCheckpoint: '#ffffff',
 };
 
@@ -348,14 +349,25 @@ export function PuzzleOverlay({ synapseId, targetNeuronId, difficulty, onComplet
                     pointerEvents: 'none',
                 }}
             >
+                {/* Glow effect */}
+                <defs>
+                    <filter id="glow">
+                        <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+                        <feMerge>
+                            <feMergeNode in="coloredBlur"/>
+                            <feMergeNode in="SourceGraphic"/>
+                        </feMerge>
+                    </filter>
+                </defs>
                 <path
                     d={d}
-                    stroke={COLORS.pathLine}
+                    stroke="#00ffcc"
                     strokeWidth={4}
                     strokeLinecap="round"
                     strokeLinejoin="round"
                     fill="none"
-                    opacity={0.8}
+                    opacity={0.9}
+                    filter="url(#glow)"
                 />
             </svg>
         );
@@ -373,99 +385,136 @@ export function PuzzleOverlay({ synapseId, targetNeuronId, difficulty, onComplet
                     left: 0,
                     right: 0,
                     bottom: 0,
-                    background: 'rgba(0, 0, 0, 0.95)',
+                    background: 'rgba(0, 10, 20, 0.98)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     zIndex: 1000,
+                    fontFamily: '"Courier New", monospace',
                 }}
             >
+                {/* CRT scanline effect */}
                 <div
                     style={{
-                        background: 'linear-gradient(135deg, #1a1a2e 0%, #0d0d1a 100%)',
-                        border: '3px solid #f6ad55',
-                        borderRadius: 12,
+                        position: 'fixed',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        pointerEvents: 'none',
+                        background: 'repeating-linear-gradient(0deg, rgba(0,0,0,0.1) 0px, rgba(0,0,0,0.1) 1px, transparent 1px, transparent 2px)',
+                        zIndex: 1001,
+                    }}
+                />
+
+                <div
+                    style={{
+                        background: 'rgba(0, 10, 20, 0.95)',
+                        border: '2px solid #ff9933',
                         padding: '40px 50px',
                         maxWidth: 450,
                         textAlign: 'center',
-                        boxShadow: '0 0 30px rgba(246, 173, 85, 0.3)',
+                        boxShadow: '0 0 40px rgba(255, 153, 51, 0.3), inset 0 0 30px rgba(255, 153, 51, 0.05)',
+                        position: 'relative',
                     }}
                 >
+                    {/* Header bar */}
+                    <div style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        height: 3,
+                        background: 'linear-gradient(90deg, transparent, #ff9933, transparent)',
+                    }} />
+
                     {/* Warning icon */}
                     <div style={{
-                        fontSize: 60,
-                        marginBottom: 20,
+                        fontSize: 14,
+                        marginBottom: 15,
+                        color: '#ff9933',
+                        letterSpacing: 3,
                     }}>
-                        ⚠️
+                        ▲ ALERTE SYSTÈME ▲
                     </div>
 
                     {/* Title */}
-                    <h2 style={{
+                    <div style={{
                         margin: '0 0 20px 0',
-                        color: '#f6ad55',
-                        fontFamily: 'monospace',
-                        fontSize: 24,
+                        color: '#ff9933',
+                        fontSize: 22,
                         textTransform: 'uppercase',
-                        letterSpacing: 2,
+                        letterSpacing: 4,
+                        textShadow: '0 0 15px rgba(255, 153, 51, 0.5)',
                     }}>
-                        Nouveau Firewall
-                    </h2>
+                        FIREWALL RENFORCÉ
+                    </div>
 
                     {/* Warning text */}
-                    <p style={{
+                    <div style={{
                         margin: '0 0 15px 0',
-                        color: '#e2e8f0',
-                        fontSize: 18,
-                        lineHeight: 1.6,
-                        fontFamily: 'monospace',
+                        color: '#00d4aa',
+                        fontSize: 16,
+                        lineHeight: 1.8,
                     }}>
-                        À partir de maintenant, vous devez <span style={{ color: '#f6ad55', fontWeight: 'bold' }}>remplir TOUTES les cases</span> de la grille !
-                    </p>
+                        Nouveau protocole de sécurité détecté.
+                        <br />
+                        <span style={{ color: '#ff9933', fontWeight: 'bold' }}>Remplir TOUTES les cases</span> requis.
+                    </div>
 
-                    <p style={{
+                    <div style={{
                         margin: '0 0 30px 0',
-                        color: '#a0aec0',
-                        fontSize: 14,
-                        lineHeight: 1.5,
-                        fontFamily: 'monospace',
+                        color: '#666',
+                        fontSize: 12,
+                        lineHeight: 1.6,
+                        padding: '10px',
+                        background: 'rgba(255, 153, 51, 0.1)',
+                        border: '1px solid rgba(255, 153, 51, 0.2)',
                     }}>
-                        Tracez un chemin qui passe par tous les checkpoints dans l'ordre ET qui remplit chaque case de la grille.
-                    </p>
+                        Tracez un chemin passant par tous les checkpoints dans l'ordre ET remplissant chaque case.
+                    </div>
 
                     {/* Continue button */}
                     <button
                         onClick={() => setShowLevelWarning(false)}
                         style={{
                             padding: '12px 40px',
-                            fontSize: 16,
-                            fontWeight: 'bold',
-                            color: '#1a1a2e',
-                            background: 'linear-gradient(135deg, #f6ad55 0%, #ed8936 100%)',
-                            border: 'none',
-                            borderRadius: 6,
+                            fontSize: 14,
+                            color: '#ff9933',
+                            background: 'transparent',
+                            border: '2px solid #ff9933',
                             cursor: 'pointer',
-                            fontFamily: 'monospace',
                             textTransform: 'uppercase',
-                            letterSpacing: 1,
-                            transition: 'transform 0.1s, box-shadow 0.1s',
+                            letterSpacing: 2,
+                            transition: 'all 0.2s',
                         }}
                         onMouseOver={(e) => {
-                            e.currentTarget.style.transform = 'scale(1.05)';
-                            e.currentTarget.style.boxShadow = '0 0 20px rgba(246, 173, 85, 0.5)';
+                            e.currentTarget.style.background = 'rgba(255, 153, 51, 0.2)';
+                            e.currentTarget.style.boxShadow = '0 0 20px rgba(255, 153, 51, 0.4)';
                         }}
                         onMouseOut={(e) => {
-                            e.currentTarget.style.transform = 'scale(1)';
+                            e.currentTarget.style.background = 'transparent';
                             e.currentTarget.style.boxShadow = 'none';
                         }}
                     >
-                        Compris !
+                        [ CONFIRMER ]
                     </button>
+
+                    {/* Footer bar */}
+                    <div style={{
+                        position: 'absolute',
+                        bottom: 0,
+                        left: 0,
+                        right: 0,
+                        height: 3,
+                        background: 'linear-gradient(90deg, transparent, #ff9933, transparent)',
+                    }} />
                 </div>
             </div>
         );
     }
 
-    const levelNames = ['', 'NIVEAU 1 - CONNEXION', 'NIVEAU 2 - PARCOURS', 'NIVEAU 3 - LABYRINTHE'];
+    const levelNames = ['', 'FIREWALL LV.1', 'FIREWALL LV.2', 'FIREWALL LV.3'];
 
     return (
         <div
@@ -475,46 +524,98 @@ export function PuzzleOverlay({ synapseId, targetNeuronId, difficulty, onComplet
                 left: 0,
                 right: 0,
                 bottom: 0,
-                background: 'rgba(0, 0, 0, 0.85)',
+                background: 'rgba(0, 10, 20, 0.95)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 zIndex: 1000,
+                fontFamily: '"Courier New", monospace',
             }}
             onClick={(e) => {
                 if (e.target === e.currentTarget) onCancel();
             }}
         >
+            {/* CRT scanline effect */}
             <div
                 style={{
-                    background: '#1a1a2e',
-                    border: '3px solid #4299e1',
-                    borderRadius: 8,
-                    padding: 24,
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    pointerEvents: 'none',
+                    background: 'repeating-linear-gradient(0deg, rgba(0,0,0,0.1) 0px, rgba(0,0,0,0.1) 1px, transparent 1px, transparent 2px)',
+                    zIndex: 1001,
+                }}
+            />
+
+            <div
+                style={{
+                    background: 'rgba(0, 10, 20, 0.98)',
+                    border: '2px solid #00d4aa',
+                    padding: 30,
                     animation: 'puzzleIn 0.2s ease-out',
+                    boxShadow: '0 0 30px rgba(0, 212, 170, 0.3), inset 0 0 30px rgba(0, 212, 170, 0.05)',
+                    position: 'relative',
                 }}
             >
+                {/* Header bar */}
+                <div style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    height: 3,
+                    background: 'linear-gradient(90deg, transparent, #00d4aa, transparent)',
+                }} />
+
                 {/* Title */}
-                <h2 style={{
+                <div style={{
                     margin: '0 0 8px 0',
                     textAlign: 'center',
-                    color: isCompleted ? '#48bb78' : '#4299e1',
-                    fontFamily: 'Arial Black, sans-serif',
-                    fontSize: 20,
+                    color: isCompleted ? '#00ff88' : '#00d4aa',
+                    fontSize: 18,
+                    letterSpacing: 4,
+                    textTransform: 'uppercase',
+                    textShadow: isCompleted ? '0 0 10px #00ff88' : '0 0 10px rgba(0, 212, 170, 0.5)',
                 }}>
-                    {isCompleted ? 'CONNEXION REUSSIE !' : levelNames[puzzle.level]}
-                </h2>
+                    {isCompleted ? '> ACCÈS AUTORISÉ <' : `> ${levelNames[puzzle.level]} <`}
+                </div>
+
+                {/* Subtitle */}
+                <div style={{
+                    margin: '0 0 5px 0',
+                    textAlign: 'center',
+                    color: '#00d4aa88',
+                    fontSize: 10,
+                    letterSpacing: 2,
+                }}>
+                    SYSTÈME DE SÉCURITÉ NEURAL
+                </div>
+
+                {/* Instructions */}
+                <div style={{
+                    margin: '0 0 15px 0',
+                    textAlign: 'center',
+                    color: '#00d4aa',
+                    fontSize: 14,
+                    animation: 'pulse-text 2s infinite',
+                }}>
+                    TRACEZ LE CHEMIN AVEC LA SOURIS
+                </div>
 
                 {/* Hint */}
-                <p style={{
-                    margin: '0 0 16px 0',
+                <div style={{
+                    margin: '0 0 20px 0',
                     textAlign: 'center',
-                    color: '#a0aec0',
-                    fontFamily: 'Arial, sans-serif',
+                    color: '#888',
                     fontSize: 12,
+                    padding: '8px 15px',
+                    background: 'rgba(0, 212, 170, 0.1)',
+                    border: '1px solid rgba(0, 212, 170, 0.2)',
                 }}>
                     {hint}
-                </p>
+                </div>
 
                 {/* Grid */}
                 <div
@@ -523,6 +624,8 @@ export function PuzzleOverlay({ synapseId, targetNeuronId, difficulty, onComplet
                         width: puzzle.gridSize * CELL_SIZE,
                         height: puzzle.gridSize * CELL_SIZE,
                         margin: '0 auto',
+                        border: '1px solid rgba(0, 212, 170, 0.3)',
+                        boxShadow: 'inset 0 0 20px rgba(0, 212, 170, 0.1)',
                     }}
                 >
                     {pathLines}
@@ -535,12 +638,16 @@ export function PuzzleOverlay({ synapseId, targetNeuronId, difficulty, onComplet
                             const isInvalid = invalidCell?.row === rowIndex && invalidCell?.col === colIndex;
 
                             let bgColor = COLORS.cellBg;
+                            let glowColor = 'transparent';
                             if (isInvalid) {
-                                bgColor = COLORS.invalid;
+                                bgColor = 'rgba(255, 51, 102, 0.4)';
+                                glowColor = '#ff3366';
                             } else if (isInPath) {
-                                bgColor = isCheckpoint ? COLORS.checkpointReached : COLORS.pathCell;
+                                bgColor = isCheckpoint ? 'rgba(0, 255, 136, 0.3)' : 'rgba(0, 212, 170, 0.25)';
+                                glowColor = isCheckpoint ? '#00ff88' : '#00d4aa';
                             } else if (isCheckpoint) {
-                                bgColor = COLORS.checkpoint;
+                                bgColor = 'rgba(255, 153, 51, 0.3)';
+                                glowColor = '#ff9933';
                             }
 
                             let borderColor = COLORS.cellBorder;
@@ -548,6 +655,8 @@ export function PuzzleOverlay({ synapseId, targetNeuronId, difficulty, onComplet
                                 borderColor = COLORS.pathLine;
                             } else if (isHovered && !isInPath) {
                                 borderColor = COLORS.cellHover;
+                            } else if (isCheckpoint) {
+                                borderColor = '#ff993366';
                             }
 
                             return (
@@ -560,14 +669,14 @@ export function PuzzleOverlay({ synapseId, targetNeuronId, difficulty, onComplet
                                         width: CELL_SIZE - 2,
                                         height: CELL_SIZE - 2,
                                         background: bgColor,
-                                        border: `2px solid ${borderColor}`,
-                                        borderRadius: 4,
+                                        border: `1px solid ${borderColor}`,
                                         display: 'flex',
                                         alignItems: 'center',
                                         justifyContent: 'center',
                                         cursor: 'pointer',
                                         userSelect: 'none',
-                                        transition: 'background 0.1s, border-color 0.1s',
+                                        transition: 'all 0.15s',
+                                        boxShadow: glowColor !== 'transparent' ? `0 0 10px ${glowColor}40, inset 0 0 15px ${glowColor}20` : 'none',
                                     }}
                                     onMouseDown={() => handleCellClick(rowIndex, colIndex)}
                                     onMouseEnter={() => handleCellHover(rowIndex, colIndex)}
@@ -575,9 +684,11 @@ export function PuzzleOverlay({ synapseId, targetNeuronId, difficulty, onComplet
                                 >
                                     {isCheckpoint && (
                                         <span style={{
-                                            fontFamily: 'Arial Black, sans-serif',
-                                            fontSize: 16,
-                                            color: COLORS.textCheckpoint,
+                                            fontFamily: '"Courier New", monospace',
+                                            fontSize: 18,
+                                            fontWeight: 'bold',
+                                            color: isInPath ? '#00ff88' : '#ff9933',
+                                            textShadow: isInPath ? '0 0 8px #00ff88' : '0 0 8px #ff9933',
                                         }}>
                                             {cell.fixedNumber}
                                         </span>
@@ -592,52 +703,86 @@ export function PuzzleOverlay({ synapseId, targetNeuronId, difficulty, onComplet
                 <div style={{
                     display: 'flex',
                     justifyContent: 'center',
-                    gap: 16,
-                    marginTop: 20,
+                    gap: 20,
+                    marginTop: 25,
                 }}>
                     <button
                         onClick={resetPuzzle}
                         style={{
-                            padding: '8px 24px',
-                            background: '#4a5568',
-                            border: '2px solid #718096',
-                            borderRadius: 4,
-                            color: '#e2e8f0',
-                            fontFamily: 'Arial Black, sans-serif',
-                            fontSize: 14,
+                            padding: '10px 30px',
+                            background: 'transparent',
+                            border: '1px solid #00d4aa',
+                            color: '#00d4aa',
+                            fontFamily: '"Courier New", monospace',
+                            fontSize: 12,
                             cursor: 'pointer',
+                            textTransform: 'uppercase',
+                            letterSpacing: 2,
+                            transition: 'all 0.2s',
+                        }}
+                        onMouseEnter={(e) => {
+                            e.currentTarget.style.background = 'rgba(0, 212, 170, 0.2)';
+                            e.currentTarget.style.boxShadow = '0 0 15px rgba(0, 212, 170, 0.3)';
+                        }}
+                        onMouseLeave={(e) => {
+                            e.currentTarget.style.background = 'transparent';
+                            e.currentTarget.style.boxShadow = 'none';
                         }}
                     >
-                        RESET
+                        [R] Reset
                     </button>
                     <button
                         onClick={onCancel}
                         style={{
-                            padding: '8px 24px',
-                            background: '#e53e3e',
-                            border: '2px solid #fc8181',
-                            borderRadius: 4,
-                            color: '#fff',
-                            fontFamily: 'Arial Black, sans-serif',
-                            fontSize: 14,
+                            padding: '10px 30px',
+                            background: 'transparent',
+                            border: '1px solid #ff3366',
+                            color: '#ff3366',
+                            fontFamily: '"Courier New", monospace',
+                            fontSize: 12,
                             cursor: 'pointer',
+                            textTransform: 'uppercase',
+                            letterSpacing: 2,
+                            transition: 'all 0.2s',
+                        }}
+                        onMouseEnter={(e) => {
+                            e.currentTarget.style.background = 'rgba(255, 51, 102, 0.2)';
+                            e.currentTarget.style.boxShadow = '0 0 15px rgba(255, 51, 102, 0.3)';
+                        }}
+                        onMouseLeave={(e) => {
+                            e.currentTarget.style.background = 'transparent';
+                            e.currentTarget.style.boxShadow = 'none';
                         }}
                     >
-                        ANNULER
+                        [ESC] Annuler
                     </button>
                 </div>
+
+                {/* Footer bar */}
+                <div style={{
+                    position: 'absolute',
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    height: 3,
+                    background: 'linear-gradient(90deg, transparent, #00d4aa, transparent)',
+                }} />
             </div>
 
             <style>{`
                 @keyframes puzzleIn {
                     from {
                         opacity: 0;
-                        transform: scale(0.9);
+                        transform: scale(0.95) translateY(-10px);
                     }
                     to {
                         opacity: 1;
-                        transform: scale(1);
+                        transform: scale(1) translateY(0);
                     }
+                }
+                @keyframes pulse-text {
+                    0%, 100% { opacity: 1; }
+                    50% { opacity: 0.5; }
                 }
             `}</style>
         </div>

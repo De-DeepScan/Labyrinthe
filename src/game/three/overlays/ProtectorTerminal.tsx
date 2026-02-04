@@ -1,9 +1,13 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useGameStore } from '../../stores/gameStore';
 import { SynapseState } from '../../types/interfaces';
 import { NetworkManager } from '../../services/NetworkManager';
 import { HackingGame } from './HackingGame';
 import { EventBus } from '../../EventBus';
+
+// Corruption settings
+const CORRUPTION_INTERVAL = 2000; // Add corruption every 2 seconds
+const CORRUPTION_AMOUNT = 3; // Amount of corruption to add each interval
 
 interface TerminalLine {
     id: string;
@@ -20,8 +24,13 @@ export function ProtectorTerminal() {
     const setIsHacking = useGameStore((s) => s.setIsHacking);
     const unlockSynapse = useGameStore((s) => s.unlockSynapse);
     const currentLevel = useGameStore((s) => s.currentLevel);
+    const corruptionLevel = useGameStore((s) => s.corruptionLevel);
+    const addCorruption = useGameStore((s) => s.addCorruption);
+    const aiEnabled = useGameStore((s) => s.aiEnabled);
 
     const [terminalLines, setTerminalLines] = useState<TerminalLine[]>([]);
+    const [glitchActive, setGlitchActive] = useState(false);
+    const lastCorruptionWarning = useRef(0);
 
     // Add terminal log
     const addLog = useCallback((text: string, type: TerminalLine['type'] = 'info') => {
@@ -44,6 +53,52 @@ export function ProtectorTerminal() {
             setTimeout(() => addLog(text, type), delay);
         });
     }, [addLog]);
+
+    // Automatic corruption timer (AI effect)
+    useEffect(() => {
+        if (!aiEnabled) return;
+
+        const interval = setInterval(() => {
+            addCorruption(CORRUPTION_AMOUNT);
+        }, CORRUPTION_INTERVAL);
+
+        return () => clearInterval(interval);
+    }, [aiEnabled, addCorruption]);
+
+    // Corruption warning messages
+    useEffect(() => {
+        const thresholds = [25, 50, 75, 90];
+        const currentThreshold = thresholds.find(
+            (t) => corruptionLevel >= t && lastCorruptionWarning.current < t
+        );
+
+        if (currentThreshold) {
+            lastCorruptionWarning.current = currentThreshold;
+            const messages: Record<number, string> = {
+                25: '> ALERTE: Corruption détectée (25%)',
+                50: '> DANGER: Corruption critique (50%)',
+                75: '> URGENCE: Système instable (75%)',
+                90: '> CRITIQUE: Défaillance imminente (90%)',
+            };
+            addLog(messages[currentThreshold], 'error');
+        }
+    }, [corruptionLevel, addLog]);
+
+    // Random glitch effects based on corruption level
+    useEffect(() => {
+        if (corruptionLevel < 20) return;
+
+        const glitchInterval = setInterval(() => {
+            // Higher corruption = more frequent glitches
+            const glitchChance = corruptionLevel / 200;
+            if (Math.random() < glitchChance) {
+                setGlitchActive(true);
+                setTimeout(() => setGlitchActive(false), 100 + Math.random() * 200);
+            }
+        }, 500);
+
+        return () => clearInterval(glitchInterval);
+    }, [corruptionLevel]);
 
     // Track explorer position changes (from local state) - no log message
 
@@ -150,6 +205,18 @@ export function ProtectorTerminal() {
         ? networkData.synapses[selectedSynapseId]
         : null;
 
+    // Calculate corruption visual effects
+    const corruptionColor = corruptionLevel > 50
+        ? `rgba(${Math.min(255, 50 + corruptionLevel * 2)}, ${Math.max(0, 20 - corruptionLevel / 5)}, ${Math.max(0, 30 - corruptionLevel / 3)}, 0.98)`
+        : 'rgba(0, 10, 20, 0.98)';
+
+    const textCorruptionColor = corruptionLevel > 30
+        ? `hsl(${Math.max(0, 170 - corruptionLevel * 1.5)}, 100%, ${Math.min(70, 50 + corruptionLevel / 4)}%)`
+        : '#00d4aa';
+
+    // Difficulty modifier based on corruption (used in hacking game)
+    const corruptionDifficultyBonus = Math.floor(corruptionLevel / 30);
+
     return (
         <div
             style={{
@@ -158,15 +225,45 @@ export function ProtectorTerminal() {
                 left: 0,
                 right: 0,
                 bottom: 0,
-                backgroundColor: 'rgba(0, 10, 20, 0.98)',
+                backgroundColor: corruptionColor,
                 fontFamily: '"Courier New", monospace',
-                color: '#00d4aa',
+                color: textCorruptionColor,
                 display: 'flex',
                 flexDirection: 'column',
                 padding: '20px',
                 overflow: 'hidden',
+                filter: glitchActive
+                    ? `hue-rotate(${Math.random() * 360}deg) brightness(${1.5 + Math.random()})`
+                    : corruptionLevel > 60
+                    ? `brightness(${1 + (corruptionLevel - 60) / 100}) contrast(${1 + (corruptionLevel - 60) / 200})`
+                    : 'none',
+                transition: glitchActive ? 'none' : 'filter 0.5s, background-color 1s',
             }}
         >
+            {/* Corruption indicator bar */}
+            {corruptionLevel > 0 && (
+                <div
+                    style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        height: '4px',
+                        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                    }}
+                >
+                    <div
+                        style={{
+                            width: `${corruptionLevel}%`,
+                            height: '100%',
+                            backgroundColor: corruptionLevel > 75 ? '#ff0000' : corruptionLevel > 50 ? '#ff6600' : corruptionLevel > 25 ? '#ffaa00' : '#ff4444',
+                            transition: 'width 0.5s, background-color 0.5s',
+                            boxShadow: corruptionLevel > 50 ? `0 0 10px ${corruptionLevel > 75 ? '#ff0000' : '#ff6600'}` : 'none',
+                        }}
+                    />
+                </div>
+            )}
+
             {/* Header */}
             <div
                 style={{
@@ -181,8 +278,18 @@ export function ProtectorTerminal() {
                 <div style={{ fontSize: '20px', textTransform: 'uppercase', letterSpacing: '3px' }}>
                     NEURAL_HACK Terminal
                 </div>
-                <div style={{ fontSize: '14px', color: '#00ff00' }}>
-                    NIVEAU {currentLevel} | EXPLORATEUR: {explorerPosition || 'N/A'}
+                <div style={{ fontSize: '14px', display: 'flex', gap: '15px', alignItems: 'center' }}>
+                    <span style={{ color: '#00ff00' }}>NIVEAU {currentLevel}</span>
+                    <span style={{ color: '#888' }}>|</span>
+                    <span style={{ color: '#00ff00' }}>EXPLORATEUR: {explorerPosition || 'N/A'}</span>
+                    <span style={{ color: '#888' }}>|</span>
+                    <span style={{
+                        color: corruptionLevel > 75 ? '#ff0000' : corruptionLevel > 50 ? '#ff6600' : corruptionLevel > 25 ? '#ffaa00' : '#00d4aa',
+                        fontWeight: corruptionLevel > 50 ? 'bold' : 'normal',
+                        animation: corruptionLevel > 75 ? 'blink 0.5s infinite' : 'none',
+                    }}>
+                        CORRUPTION: {corruptionLevel}%
+                    </span>
                 </div>
             </div>
 
@@ -251,8 +358,9 @@ export function ProtectorTerminal() {
                     {isHacking && selectedSynapse ? (
                         <HackingGame
                             synapseId={selectedSynapseId!}
-                            difficulty={selectedSynapse.difficulty}
+                            difficulty={Math.min(3, selectedSynapse.difficulty + corruptionDifficultyBonus)}
                             onComplete={handleHackComplete}
+                            corruptionLevel={corruptionLevel}
                         />
                     ) : selectedSynapse ? (
                         <div
@@ -397,6 +505,39 @@ export function ProtectorTerminal() {
                     zIndex: 10,
                 }}
             />
+
+            {/* Corruption glitch overlay */}
+            {corruptionLevel > 40 && (
+                <div
+                    style={{
+                        position: 'fixed',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        pointerEvents: 'none',
+                        background: `linear-gradient(
+                            ${Math.random() * 360}deg,
+                            transparent 0%,
+                            rgba(255, 0, 0, ${corruptionLevel / 500}) ${30 + Math.random() * 20}%,
+                            transparent ${50 + Math.random() * 20}%,
+                            rgba(0, 255, 255, ${corruptionLevel / 500}) ${70 + Math.random() * 10}%,
+                            transparent 100%
+                        )`,
+                        zIndex: 11,
+                        opacity: glitchActive ? 1 : 0.3,
+                        mixBlendMode: 'screen',
+                    }}
+                />
+            )}
+
+            {/* CSS for blink animation */}
+            <style>{`
+                @keyframes blink {
+                    0%, 50% { opacity: 1; }
+                    51%, 100% { opacity: 0.3; }
+                }
+            `}</style>
         </div>
     );
 }
