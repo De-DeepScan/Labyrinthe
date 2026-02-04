@@ -70,7 +70,7 @@ export function ProtectorTerminal() {
                 setCorruptionStarted(true);
                 addLog('> ALERTE: ARIA tente de corrompre le système!', 'error');
             }, 3000);
-        }, 15000);
+        }, 30000);
 
         return () => clearTimeout(delayTimer);
     }, [aiEnabled, corruptionStarted, addLog]);
