@@ -53,6 +53,7 @@ function hashIndex(index: number, seed: number): number {
 
 // Get a corrupted version of a character based on corruption level
 // Progressive corruption: characters get corrupted one by one as corruption increases
+// First line corrupts first, then second, then third...
 // Once corrupted, symbol is STATIC (no changes)
 function getCorruptedChar(
     char: string,
@@ -61,9 +62,18 @@ function getCorruptedChar(
     sequenceIndex: number
 ): { char: string; opacity: number; glitched: boolean } {
     // Each character has a "corruption threshold" - when corruption reaches it, the char is corrupted
-    // Use deterministic hash so same characters always corrupt at same thresholds
+    // First line (sequence 0) has lowest thresholds, later lines have higher thresholds
     const uniqueIndex = sequenceIndex * 100 + charIndex;
-    const threshold = hashIndex(uniqueIndex, 42) * 80 + 10; // Thresholds between 10% and 90%
+    const baseHash = hashIndex(uniqueIndex, 42);
+
+    // Threshold range per line:
+    // Line 0: 5% to 30%
+    // Line 1: 25% to 50%
+    // Line 2: 45% to 70%
+    // Line 3: 65% to 90%
+    const lineStart = sequenceIndex * 20 + 5;
+    const lineRange = 25;
+    const threshold = lineStart + baseHash * lineRange;
 
     // Character is not yet corrupted
     if (corruptionLevel < threshold) {
