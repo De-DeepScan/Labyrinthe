@@ -97,6 +97,17 @@ function App() {
                     // Backoffice ends the dilemma - resume the game
                     useGameStore.getState().setDilemmaInProgress(false);
                     break;
+                case "sidequest_score": {
+                    // Sidequest points reduce corruption
+                    const points = (payload?.points as number) || 0;
+                    const reduction = points * 5;
+                    useGameStore.getState().purgeCorruption(reduction);
+                    useGameStore.getState().addMessage(
+                        `Sidequest: +${points} pts - Corruption -${reduction}%`,
+                        "success"
+                    );
+                    break;
+                }
             }
         });
 

@@ -4,7 +4,6 @@ import { SynapseState } from '../../types/interfaces';
 import { NetworkManager } from '../../services/NetworkManager';
 import { HackingGame } from './HackingGame';
 import { EventBus } from '../../EventBus';
-import { gamemaster } from '../../../gamemaster-client';
 
 // Corruption settings
 const CORRUPTION_INTERVAL = 2000; // Add corruption every 2 seconds
@@ -126,17 +125,7 @@ export function ProtectorTerminal() {
         return () => clearInterval(interval);
     }, [aiEnabled, corruptionStarted, addCorruption]);
 
-    // Listen for sidequest_score from backoffice - each point reduces corruption by 5%
-    useEffect(() => {
-        gamemaster.onCommand(({ action, payload }) => {
-            if (action === 'sidequest_score') {
-                const points = (payload.points as number) || 0;
-                const reduction = points * 5;
-                purgeCorruption(reduction);
-                addLog(`> SIDEQUEST: +${points} pts - Corruption réduite de ${reduction}%`, 'success');
-            }
-        });
-    }, [purgeCorruption, addLog]);
+    // Note: sidequest_score is now handled in App.tsx to avoid overwriting onCommand listeners
 
     // Corruption warning messages
     useEffect(() => {

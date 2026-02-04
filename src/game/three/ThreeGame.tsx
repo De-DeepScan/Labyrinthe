@@ -106,6 +106,11 @@ function UIOverlays() {
             useGameStore.getState().setDilemmaInProgress(true);
             gamemaster.sendEvent('level_complete', { level: currentLevel });
 
+            // Notify ARIA to show a dilemma (for levels 1 and 2)
+            if (currentLevel < 3) {
+                gamemaster.sendMessage({ type: 'dilemma-showing', data: { isShowing: true } });
+            }
+
             if (currentLevel >= 3) {
                 // Final level complete - victory!
                 useGameStore.getState().addMessage('VICTOIRE ! Tous les niveaux complétés !', 'success');
