@@ -42,8 +42,8 @@ function getRandomCommands(difficulty: number, count: number): string[] {
     return shuffled.slice(0, count);
 }
 
-// Glitch characters for corruption effect
-const GLITCH_CHARS = '!@#$%^&*█▓▒░▀▄■□●○';
+// Glitch characters for corruption effect - simple symbols only
+const GLITCH_CHARS = '?█▓░■□●';
 
 // Deterministic hash for consistent corruption per character
 function hashIndex(index: number, seed: number): number {
@@ -53,12 +53,12 @@ function hashIndex(index: number, seed: number): number {
 
 // Get a corrupted version of a character based on corruption level
 // Progressive corruption: characters get corrupted one by one as corruption increases
+// Once corrupted, symbol is STATIC (no changes)
 function getCorruptedChar(
     char: string,
     corruptionLevel: number,
     charIndex: number,
-    sequenceIndex: number,
-    time: number
+    sequenceIndex: number
 ): { char: string; opacity: number; glitched: boolean } {
     // Each character has a "corruption threshold" - when corruption reaches it, the char is corrupted
     // Use deterministic hash so same characters always corrupt at same thresholds
@@ -70,15 +70,13 @@ function getCorruptedChar(
         return { char, opacity: 1, glitched: false };
     }
 
-    // Character is corrupted - show a glitch symbol (deterministic based on index)
-    // The symbol slowly changes over time but not rapidly (every 2 seconds)
-    const slowTime = Math.floor(time / 2);
-    const glitchSeed = hashIndex(uniqueIndex + slowTime, 123);
+    // Character is corrupted - show a STATIC glitch symbol (never changes once corrupted)
+    const glitchSeed = hashIndex(uniqueIndex, 123);
     const glitchIndex = Math.floor(glitchSeed * GLITCH_CHARS.length);
     const displayChar = GLITCH_CHARS[glitchIndex];
 
-    // Slight opacity variation but no rapid flickering (static per character)
-    const opacity = 0.5 + hashIndex(uniqueIndex, 456) * 0.3; // 0.5 to 0.8
+    // Fixed opacity per character (no variation over time)
+    const opacity = 0.7;
 
     return { char: displayChar, opacity, glitched: true };
 }
@@ -94,20 +92,7 @@ export function HackingGame({ synapseId, difficulty, onComplete, corruptionLevel
     const [currentIndex, setCurrentIndex] = useState(0);
     const [gameState, setGameState] = useState<'playing' | 'success' | 'failed'>('playing');
     const [glitchEffect, setGlitchEffect] = useState(false);
-    const [corruptionTime, setCorruptionTime] = useState(0);
     const inputRef = useRef<HTMLInputElement>(null);
-
-    // Update corruption time for slow symbol changes (not rapid flickering)
-    useEffect(() => {
-        if (corruptionLevel < 10) return;
-
-        // Slow update - every 2 seconds for gentle symbol changes
-        const interval = setInterval(() => {
-            setCorruptionTime((t) => t + 1);
-        }, 2000);
-
-        return () => clearInterval(interval);
-    }, [corruptionLevel]);
 
     // Initialize sequences with meaningful commands
     useEffect(() => {
@@ -291,7 +276,7 @@ export function HackingGame({ synapseId, difficulty, onComplete, corruptionLevel
 
                                 // Apply corruption effect to ALL untyped characters (all sequences)
                                 const corrupted = !isTyped && seq.status !== 'success'
-                                    ? getCorruptedChar(char, corruptionLevel, charIndex, index, corruptionTime)
+                                    ? getCorruptedChar(char, corruptionLevel, charIndex, index)
                                     : { char, opacity: 1, glitched: false };
 
                                 return (
@@ -310,7 +295,7 @@ export function HackingGame({ synapseId, difficulty, onComplete, corruptionLevel
                                                     ? 'rgba(0, 255, 0, 0.2)'
                                                     : 'rgba(255, 0, 0, 0.2)'
                                                 : corrupted.glitched
-                                                ? 'rgba(80, 40, 60, 0.3)' // Subtle dark purple instead of red
+                                                ? 'rgba(40, 40, 50, 0.4)' // Subtle dark gray
                                                 : 'rgba(0, 0, 0, 0.3)',
                                             border: `1px solid ${
                                                 isCurrent
@@ -320,19 +305,17 @@ export function HackingGame({ synapseId, difficulty, onComplete, corruptionLevel
                                                         ? '#00ff00'
                                                         : '#ff4444'
                                                     : corrupted.glitched
-                                                    ? '#664466' // Muted purple border
+                                                    ? '#555555' // Muted gray border
                                                     : '#333'
                                             }`,
                                             color: isTyped
                                                 ? isCorrect
                                                     ? '#00ff00'
                                                     : '#ff4444'
-                                                : seq.status === 'active'
-                                                ? corrupted.glitched
-                                                    ? '#aa88aa' // Muted purple text
-                                                    : '#00d4aa'
                                                 : corrupted.glitched
-                                                ? '#886688' // Even more muted for pending
+                                                ? '#888888' // Same gray for all corrupted
+                                                : seq.status === 'active'
+                                                ? '#00d4aa'
                                                 : '#666',
                                             opacity: isTyped ? 1 : corrupted.opacity,
                                             boxShadow: isCurrent ? '0 0 10px rgba(0, 212, 170, 0.5)' : 'none',
