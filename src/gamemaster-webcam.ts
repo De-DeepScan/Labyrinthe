@@ -4,17 +4,21 @@ const rtcConfig: RTCConfiguration = {
   iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
 };
 
+const PING_INTERVAL = 30_000;
+
 export class GamemasterWebcam {
   private socket: Socket;
   private cameraId: string;
   private stream: MediaStream | null = null;
   private pc: RTCPeerConnection | null = null;
+  private pingTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(socket: Socket, cameraId: string) {
     this.socket = socket;
     this.cameraId = cameraId;
     this.init();
     this.setupListeners();
+    this.startPing();
   }
 
   private async init() {
@@ -26,6 +30,21 @@ export class GamemasterWebcam {
       console.log(`[webrtc:${this.cameraId}] Webcam stream acquired`);
     } catch (err) {
       console.error(`[webrtc:${this.cameraId}] Failed to access webcam:`, err);
+    }
+  }
+
+  private startPing() {
+    // Send initial ping
+    this.sendPing();
+    // Re-ping on reconnect
+    this.socket.on("connect", () => this.sendPing());
+    // Ping every 30s
+    this.pingTimer = setInterval(() => this.sendPing(), PING_INTERVAL);
+  }
+
+  private sendPing() {
+    if (this.socket.connected) {
+      this.socket.emit("webrtc:camera-ping", { cameraId: this.cameraId });
     }
   }
 
