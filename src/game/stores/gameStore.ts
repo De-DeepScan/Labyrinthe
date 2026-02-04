@@ -102,6 +102,10 @@ interface GameState {
     dilemmaData: unknown | null;
     setShowDilemma: (show: boolean, data?: unknown) => void;
 
+    // Dilemma pause state (between levels)
+    dilemmaInProgress: boolean;
+    setDilemmaInProgress: (inProgress: boolean) => void;
+
     // AI Repair state
     aiRepairProgress: { neuronId: string; progress: number } | null;
     setAIRepairProgress: (data: { neuronId: string; progress: number } | null) => void;
@@ -357,6 +361,10 @@ export const useGameStore = create<GameState>((set, get) => ({
     dilemmaData: null,
     setShowDilemma: (show, data) => set({ showDilemma: show, dilemmaData: data || null }),
 
+    // Dilemma pause state (between levels)
+    dilemmaInProgress: false,
+    setDilemmaInProgress: (inProgress) => set({ dilemmaInProgress: inProgress }),
+
     // AI Repair state
     aiRepairProgress: null,
     setAIRepairProgress: (data) => set({ aiRepairProgress: data }),
@@ -428,6 +436,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         showTerminal: false,
         showDilemma: false,
         dilemmaData: null,
+        dilemmaInProgress: false,
         aiRepairProgress: null,
         aiSlowdownActive: false,
         aiSlowdownEndTime: 0,

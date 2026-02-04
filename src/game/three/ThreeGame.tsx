@@ -10,8 +10,10 @@ import { DilemmaOverlay } from './overlays/DilemmaOverlay';
 import { LevelTransition } from './overlays/LevelTransition';
 import { ProtectorTerminal } from './overlays/ProtectorTerminal';
 import { DeepScanIdentityCard } from './overlays/DeepScanIdentityCard';
+import { DilemmaWaitOverlay } from './overlays/DilemmaWaitOverlay';
 import { NetworkManager } from '../services/NetworkManager';
 import { EventBus } from '../EventBus';
+import { gamemaster } from '../../gamemaster-client';
 
 export function ThreeGame() {
     const role = useGameStore((state) => state.role);
@@ -85,6 +87,7 @@ function UIOverlays() {
     const showLevelTransition = useGameStore((state) => state.showLevelTransition);
     const pendingLevel = useGameStore((state) => state.pendingLevel);
     const completeLevelTransition = useGameStore((state) => state.completeLevelTransition);
+    const dilemmaInProgress = useGameStore((state) => state.dilemmaInProgress);
 
     const handlePuzzleComplete = useCallback((synapseId: string, targetNeuronId: string) => {
         // Activate synapse and neuron
@@ -98,6 +101,11 @@ function UIOverlays() {
         // Check if reached core neuron - advance to next level
         if (networkData && targetNeuronId === networkData.coreNeuronId) {
             const currentLevel = useGameStore.getState().currentLevel;
+
+            // Trigger dilemma pause and send event to backoffice
+            useGameStore.getState().setDilemmaInProgress(true);
+            gamemaster.sendEvent('level_complete', { level: currentLevel });
+
             if (currentLevel >= 3) {
                 // Final level complete - victory!
                 useGameStore.getState().addMessage('VICTOIRE ! Tous les niveaux complétés !', 'success');
@@ -149,7 +157,7 @@ function UIOverlays() {
             {showTerminal && <TerminalOverlay />}
 
             {/* Level Transition Animation */}
-            {showLevelTransition && pendingLevel && (
+            {showLevelTransition && pendingLevel && !dilemmaInProgress && (
                 <LevelTransition
                     level={pendingLevel}
                     onComplete={completeLevelTransition}
@@ -239,8 +247,11 @@ function UIOverlays() {
                 }} />
             )}
 
+            {/* Dilemma Wait Overlay */}
+            {dilemmaInProgress && <DilemmaWaitOverlay />}
+
             {/* Game Over Overlay */}
-            {isGameOver && (
+            {isGameOver && !dilemmaInProgress && (
                 isVictory ? (
                     <DeepScanIdentityCard />
                 ) : (
@@ -359,6 +370,7 @@ function ProtectorUIOverlays() {
     const completeLevelTransition = useGameStore((state) => state.completeLevelTransition);
     const setNetworkData = useGameStore((state) => state.setNetworkData);
     const unlockSynapse = useGameStore((state) => state.unlockSynapse);
+    const dilemmaInProgress = useGameStore((state) => state.dilemmaInProgress);
 
     const triggerLevelTransition = useGameStore((state) => state.triggerLevelTransition);
 
@@ -407,15 +419,18 @@ function ProtectorUIOverlays() {
             )}
 
             {/* Level Transition Animation */}
-            {showLevelTransition && pendingLevel && (
+            {showLevelTransition && pendingLevel && !dilemmaInProgress && (
                 <LevelTransition
                     level={pendingLevel}
                     onComplete={completeLevelTransition}
                 />
             )}
 
+            {/* Dilemma Wait Overlay */}
+            {dilemmaInProgress && <DilemmaWaitOverlay />}
+
             {/* Game Over Overlay */}
-            {isGameOver && (
+            {isGameOver && !dilemmaInProgress && (
                 isVictory ? (
                     <DeepScanIdentityCard />
                 ) : (

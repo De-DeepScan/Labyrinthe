@@ -14,6 +14,7 @@ function App() {
     const isGameOver = useGameStore((state) => state.isGameOver);
     const isVictory = useGameStore((state) => state.isVictory);
     const corruptionLevel = useGameStore((state) => state.corruptionLevel);
+    const dilemmaInProgress = useGameStore((state) => state.dilemmaInProgress);
     const setRole = useGameStore((state) => state.setRole);
     const setGameStarted = useGameStore((state) => state.setGameStarted);
     const setAIEnabled = useGameStore((state) => state.setAIEnabled);
@@ -88,6 +89,23 @@ function App() {
                     useGameStore.getState().purgeCorruption(30);
                     useGameStore.getState().addMessage("Corruption purgée par station externe!", "success");
                     break;
+                case "dilemma_start":
+                    // Backoffice starts a dilemma - pause the game
+                    useGameStore.getState().setDilemmaInProgress(true);
+                    break;
+                case "dilemma_end":
+                    // Backoffice ends the dilemma - resume the game
+                    useGameStore.getState().setDilemmaInProgress(false);
+                    break;
+            }
+        });
+
+        // Listen for game-message from dilemma app
+        gamemaster.onMessage((message: unknown) => {
+            const msg = message as { type?: string; isShowing?: boolean };
+            if (msg.type === 'dilemma-showing') {
+                // Sync dilemma state with the dilemma app
+                useGameStore.getState().setDilemmaInProgress(msg.isShowing ?? false);
             }
         });
     }, [role, reset, setGameStarted, setAIEnabled]);
@@ -101,8 +119,9 @@ function App() {
             isGameOver,
             isVictory,
             corruptionLevel,
+            dilemmaInProgress,
         });
-    }, [role, gameStarted, aiEnabled, isGameOver, isVictory, corruptionLevel]);
+    }, [role, gameStarted, aiEnabled, isGameOver, isVictory, corruptionLevel, dilemmaInProgress]);
 
     // Send events on game over
     useEffect(() => {
