@@ -56,8 +56,7 @@ function App() {
             [
                 { id: "reset", label: "Réinitialiser" },
                 { id: "start", label: "Démarrer la partie" },
-                { id: "enable_ai", label: "Activer l'IA" },
-                { id: "disable_ai", label: "Désactiver l'IA" },
+                { id: "set_ai", label: "Activer/Désactiver l'IA", params: ["enabled"] },
             ],
             role || undefined
         );
@@ -67,7 +66,7 @@ function App() {
         gamemaster.onDisconnect(() => setConnected(false));
 
         // Handle commands from backoffice
-        gamemaster.onCommand(({ action }) => {
+        gamemaster.onCommand(({ action, payload }) => {
             switch (action) {
                 case "reset":
                     reset();
@@ -76,14 +75,15 @@ function App() {
                 case "start":
                     setGameStarted(true);
                     break;
-                case "enable_ai":
-                    setAIEnabled(true);
-                    useGameStore.getState().addMessage("IA activée", "warning");
+                case "set_ai": {
+                    const enabled = payload?.enabled === true;
+                    setAIEnabled(enabled);
+                    useGameStore.getState().addMessage(
+                        enabled ? "IA activée" : "IA désactivée",
+                        enabled ? "warning" : "info"
+                    );
                     break;
-                case "disable_ai":
-                    setAIEnabled(false);
-                    useGameStore.getState().addMessage("IA désactivée", "info");
-                    break;
+                }
                 case "terminal_purged":
                     // Other game succeeded in purging the corruption
                     useGameStore.getState().purgeCorruption(30);
