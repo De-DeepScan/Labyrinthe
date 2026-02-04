@@ -56,11 +56,11 @@ export function ProtectorTerminal() {
         });
     }, [addLog]);
 
-    // Corruption start sequence: 6s delay -> 3s warning popup -> start corruption
+    // Corruption start sequence: 15s delay -> 3s warning popup -> start corruption
     useEffect(() => {
         if (!aiEnabled || corruptionStarted) return;
 
-        // Wait 6 seconds before showing warning
+        // Wait 15 seconds before showing warning
         const delayTimer = setTimeout(() => {
             setShowCorruptionWarning(true);
 
@@ -70,7 +70,7 @@ export function ProtectorTerminal() {
                 setCorruptionStarted(true);
                 addLog('> ALERTE: ARIA tente de corrompre le système!', 'error');
             }, 3000);
-        }, 6000);
+        }, 15000);
 
         return () => clearTimeout(delayTimer);
     }, [aiEnabled, corruptionStarted, addLog]);
