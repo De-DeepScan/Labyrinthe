@@ -43,44 +43,44 @@ function getRandomCommands(difficulty: number, count: number): string[] {
 }
 
 // Glitch characters for corruption effect
-const GLITCH_CHARS = '!@#$%^&*()[]{}|;:,.<>?/\\~`█▓▒░▀▄▌▐■□▪▫●○◊◦';
+const GLITCH_CHARS = '!@#$%^&*█▓▒░▀▄■□●○';
+
+// Deterministic hash for consistent corruption per character
+function hashIndex(index: number, seed: number): number {
+    const x = Math.sin(index * 12.9898 + seed * 78.233) * 43758.5453;
+    return x - Math.floor(x);
+}
 
 // Get a corrupted version of a character based on corruption level
-function getCorruptedChar(char: string, corruptionLevel: number, index: number, time: number): { char: string; opacity: number; glitched: boolean; hidden: boolean } {
-    if (corruptionLevel < 20) {
-        return { char, opacity: 1, glitched: false, hidden: false };
+// Progressive corruption: characters get corrupted one by one as corruption increases
+function getCorruptedChar(
+    char: string,
+    corruptionLevel: number,
+    charIndex: number,
+    sequenceIndex: number,
+    time: number
+): { char: string; opacity: number; glitched: boolean } {
+    // Each character has a "corruption threshold" - when corruption reaches it, the char is corrupted
+    // Use deterministic hash so same characters always corrupt at same thresholds
+    const uniqueIndex = sequenceIndex * 100 + charIndex;
+    const threshold = hashIndex(uniqueIndex, 42) * 80 + 10; // Thresholds between 10% and 90%
+
+    // Character is not yet corrupted
+    if (corruptionLevel < threshold) {
+        return { char, opacity: 1, glitched: false };
     }
 
-    // At 20%+, characters become hidden (replaced by ?)
-    // The more corruption, the more likely to show glitch effects on top
-    const seed = (index * 17 + Math.floor(time * 3)) % 100;
-    const glitchChance = (corruptionLevel - 20) / 150; // Chance for extra glitch effects
+    // Character is corrupted - show a glitch symbol (deterministic based on index)
+    // The symbol slowly changes over time but not rapidly (every 2 seconds)
+    const slowTime = Math.floor(time / 2);
+    const glitchSeed = hashIndex(uniqueIndex + slowTime, 123);
+    const glitchIndex = Math.floor(glitchSeed * GLITCH_CHARS.length);
+    const displayChar = GLITCH_CHARS[glitchIndex];
 
-    // Character is always hidden at 20%+
-    let displayChar = '?';
-    let opacity = 0.6;
-    let glitched = true;
+    // Slight opacity variation but no rapid flickering (static per character)
+    const opacity = 0.5 + hashIndex(uniqueIndex, 456) * 0.3; // 0.5 to 0.8
 
-    // Add extra glitch effects based on corruption level
-    if (seed < glitchChance * 100) {
-        const glitchType = seed % 3;
-
-        if (glitchType === 0) {
-            // Replace ? with glitch character
-            const glitchIndex = (index + Math.floor(time * 5)) % GLITCH_CHARS.length;
-            displayChar = GLITCH_CHARS[glitchIndex];
-            opacity = 0.5;
-        } else if (glitchType === 1) {
-            // Make completely invisible
-            displayChar = ' ';
-            opacity = 0;
-        } else {
-            // Flicker
-            opacity = Math.random() > 0.5 ? 0.7 : 0.2;
-        }
-    }
-
-    return { char: displayChar, opacity, glitched, hidden: true };
+    return { char: displayChar, opacity, glitched: true };
 }
 
 export function HackingGame({ synapseId, difficulty, onComplete, corruptionLevel = 0 }: HackingGameProps) {
@@ -97,13 +97,14 @@ export function HackingGame({ synapseId, difficulty, onComplete, corruptionLevel
     const [corruptionTime, setCorruptionTime] = useState(0);
     const inputRef = useRef<HTMLInputElement>(null);
 
-    // Update corruption time for flickering effect
+    // Update corruption time for slow symbol changes (not rapid flickering)
     useEffect(() => {
-        if (corruptionLevel < 20) return;
+        if (corruptionLevel < 10) return;
 
+        // Slow update - every 2 seconds for gentle symbol changes
         const interval = setInterval(() => {
-            setCorruptionTime((t) => t + 0.1);
-        }, 100);
+            setCorruptionTime((t) => t + 1);
+        }, 2000);
 
         return () => clearInterval(interval);
     }, [corruptionLevel]);
@@ -219,8 +220,8 @@ export function HackingGame({ synapseId, difficulty, onComplete, corruptionLevel
                 alignItems: 'center',
                 justifyContent: 'center',
                 position: 'relative',
-                filter: glitchEffect ? 'hue-rotate(90deg)' : 'none',
-                transition: 'filter 0.1s',
+                filter: glitchEffect ? 'brightness(1.2)' : 'none', // Subtle brightness instead of hue-rotate
+                transition: 'filter 0.3s',
                 cursor: 'text',
             }}
         >
@@ -288,9 +289,9 @@ export function HackingGame({ synapseId, difficulty, onComplete, corruptionLevel
                                 const isTyped = typedChar !== '';
                                 const isCurrent = seq.status === 'active' && charIndex === seq.typed.length;
 
-                                // Apply corruption effect to untyped characters
-                                const corrupted = !isTyped && seq.status === 'active'
-                                    ? getCorruptedChar(char, corruptionLevel, index * 10 + charIndex, corruptionTime)
+                                // Apply corruption effect to ALL untyped characters (all sequences)
+                                const corrupted = !isTyped && seq.status !== 'success'
+                                    ? getCorruptedChar(char, corruptionLevel, charIndex, index, corruptionTime)
                                     : { char, opacity: 1, glitched: false };
 
                                 return (
@@ -309,7 +310,7 @@ export function HackingGame({ synapseId, difficulty, onComplete, corruptionLevel
                                                     ? 'rgba(0, 255, 0, 0.2)'
                                                     : 'rgba(255, 0, 0, 0.2)'
                                                 : corrupted.glitched
-                                                ? 'rgba(255, 0, 0, 0.1)'
+                                                ? 'rgba(80, 40, 60, 0.3)' // Subtle dark purple instead of red
                                                 : 'rgba(0, 0, 0, 0.3)',
                                             border: `1px solid ${
                                                 isCurrent
@@ -319,7 +320,7 @@ export function HackingGame({ synapseId, difficulty, onComplete, corruptionLevel
                                                         ? '#00ff00'
                                                         : '#ff4444'
                                                     : corrupted.glitched
-                                                    ? '#ff444466'
+                                                    ? '#664466' // Muted purple border
                                                     : '#333'
                                             }`,
                                             color: isTyped
@@ -328,14 +329,15 @@ export function HackingGame({ synapseId, difficulty, onComplete, corruptionLevel
                                                     : '#ff4444'
                                                 : seq.status === 'active'
                                                 ? corrupted.glitched
-                                                    ? '#ff6666'
+                                                    ? '#aa88aa' // Muted purple text
                                                     : '#00d4aa'
+                                                : corrupted.glitched
+                                                ? '#886688' // Even more muted for pending
                                                 : '#666',
                                             opacity: isTyped ? 1 : corrupted.opacity,
                                             boxShadow: isCurrent ? '0 0 10px rgba(0, 212, 170, 0.5)' : 'none',
                                             animation: isCurrent ? 'blink 1s infinite' : 'none',
-                                            transition: 'opacity 0.1s',
-                                            textShadow: corrupted.glitched ? '0 0 5px #ff0000' : 'none',
+                                            transition: 'all 0.5s ease', // Slower transitions
                                         }}
                                     >
                                         {corrupted.char}
