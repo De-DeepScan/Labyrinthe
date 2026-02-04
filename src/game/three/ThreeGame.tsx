@@ -9,6 +9,7 @@ import { PuzzleOverlay } from './overlays/PuzzleOverlay';
 import { DilemmaOverlay } from './overlays/DilemmaOverlay';
 import { LevelTransition } from './overlays/LevelTransition';
 import { ProtectorTerminal } from './overlays/ProtectorTerminal';
+import { DeepScanIdentityCard } from './overlays/DeepScanIdentityCard';
 import { NetworkManager } from '../services/NetworkManager';
 import { EventBus } from '../EventBus';
 
@@ -240,59 +241,40 @@ function UIOverlays() {
 
             {/* Game Over Overlay */}
             {isGameOver && (
-                <div style={{
-                    position: 'fixed',
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    background: 'rgba(0, 0, 0, 0.85)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    zIndex: 1000,
-                }}>
+                isVictory ? (
+                    <DeepScanIdentityCard />
+                ) : (
                     <div style={{
-                        color: isVictory ? '#00ff88' : '#ff3366',
-                        fontFamily: 'Arial Black, sans-serif',
-                        fontSize: 48,
-                        marginBottom: 20,
-                        textShadow: isVictory
-                            ? '0 0 20px #00ff88, 0 0 40px #00ff88'
-                            : '0 0 20px #ff3366, 0 0 40px #ff3366',
+                        position: 'fixed',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        background: 'rgba(0, 0, 0, 0.95)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        zIndex: 1000,
                     }}>
-                        {isVictory ? '🏆 VICTOIRE !' : '💀 DÉFAITE'}
-                    </div>
-                    <div style={{
-                        color: '#888',
-                        fontFamily: 'Courier New, monospace',
-                        fontSize: 18,
-                        marginBottom: 30,
-                    }}>
-                        {isVictory
-                            ? 'L\'explorateur a atteint le noyau !'
-                            : 'L\'IA a attrapé l\'explorateur !'}
-                    </div>
-                    <button
-                        onClick={() => {
-                            reset();
-                            window.location.reload();
-                        }}
-                        style={{
-                            padding: '12px 32px',
-                            background: isVictory ? '#00ff88' : '#ff3366',
-                            border: 'none',
-                            borderRadius: 8,
-                            color: '#000',
-                            fontFamily: 'Arial Black, sans-serif',
+                        <div style={{
+                            color: '#ff3366',
+                            fontFamily: 'Courier New, monospace',
+                            fontSize: 48,
+                            marginBottom: 20,
+                            textShadow: '0 0 20px #ff3366, 0 0 40px #ff3366',
+                        }}>
+                            CONNEXION PERDUE
+                        </div>
+                        <div style={{
+                            color: '#888',
+                            fontFamily: 'Courier New, monospace',
                             fontSize: 18,
-                            cursor: 'pointer',
-                        }}
-                    >
-                        REJOUER
-                    </button>
-                </div>
+                        }}>
+                            L'IA a intercepté l'explorateur...
+                        </div>
+                    </div>
+                )
             )}
 
             {/* Messages */}
@@ -434,58 +416,40 @@ function ProtectorUIOverlays() {
 
             {/* Game Over Overlay */}
             {isGameOver && (
-                <div style={{
-                    position: 'fixed',
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    background: 'rgba(0, 0, 0, 0.95)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    zIndex: 10000,
-                }}>
+                isVictory ? (
+                    <DeepScanIdentityCard />
+                ) : (
                     <div style={{
-                        color: isVictory ? '#00ff88' : '#ff3366',
-                        fontFamily: 'Courier New, monospace',
-                        fontSize: 48,
-                        marginBottom: 20,
-                        textShadow: isVictory
-                            ? '0 0 20px #00ff88, 0 0 40px #00ff88'
-                            : '0 0 20px #ff3366, 0 0 40px #ff3366',
+                        position: 'fixed',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        background: 'rgba(0, 0, 0, 0.95)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        zIndex: 10000,
                     }}>
-                        {isVictory ? 'MISSION ACCOMPLIE' : 'ÉCHEC DE LA MISSION'}
-                    </div>
-                    <div style={{
-                        color: '#888',
-                        fontFamily: 'Courier New, monospace',
-                        fontSize: 18,
-                        marginBottom: 30,
-                    }}>
-                        {isVictory
-                            ? 'L\'explorateur a atteint le noyau grâce à votre aide !'
-                            : 'La connexion a été perdue...'}
-                    </div>
-                    <button
-                        onClick={() => {
-                            reset();
-                            window.location.reload();
-                        }}
-                        style={{
-                            padding: '12px 32px',
-                            background: 'transparent',
-                            border: `2px solid ${isVictory ? '#00ff88' : '#ff3366'}`,
-                            color: isVictory ? '#00ff88' : '#ff3366',
+                        <div style={{
+                            color: '#ff3366',
+                            fontFamily: 'Courier New, monospace',
+                            fontSize: 48,
+                            marginBottom: 20,
+                            textShadow: '0 0 20px #ff3366, 0 0 40px #ff3366',
+                        }}>
+                            ÉCHEC DE LA MISSION
+                        </div>
+                        <div style={{
+                            color: '#888',
                             fontFamily: 'Courier New, monospace',
                             fontSize: 18,
-                            cursor: 'pointer',
-                        }}
-                    >
-                        NOUVELLE MISSION
-                    </button>
-                </div>
+                        }}>
+                            La connexion a été perdue...
+                        </div>
+                    </div>
+                )
             )}
         </>
     );
