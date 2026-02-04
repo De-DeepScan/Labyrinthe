@@ -333,7 +333,7 @@ export function HackingGame({ synapseId, difficulty, onComplete, corruptionLevel
                                             transition: 'all 0.5s ease', // Slower transitions
                                         }}
                                     >
-                                        {corrupted.char}
+                                        {isTyped ? typedChar : corrupted.char}
                                     </div>
                                 );
                             })}
