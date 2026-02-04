@@ -106,6 +106,10 @@ interface GameState {
     dilemmaInProgress: boolean;
     setDilemmaInProgress: (inProgress: boolean) => void;
 
+    // Padlock code modal (shown at end of level 3)
+    showPadlockCode: boolean;
+    setShowPadlockCode: (show: boolean) => void;
+
     // AI Repair state
     aiRepairProgress: { neuronId: string; progress: number } | null;
     setAIRepairProgress: (data: { neuronId: string; progress: number } | null) => void;
@@ -365,6 +369,10 @@ export const useGameStore = create<GameState>((set, get) => ({
     dilemmaInProgress: false,
     setDilemmaInProgress: (inProgress) => set({ dilemmaInProgress: inProgress }),
 
+    // Padlock code modal (shown at end of level 3)
+    showPadlockCode: false,
+    setShowPadlockCode: (show) => set({ showPadlockCode: show }),
+
     // AI Repair state
     aiRepairProgress: null,
     setAIRepairProgress: (data) => set({ aiRepairProgress: data }),
@@ -437,6 +445,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         showDilemma: false,
         dilemmaData: null,
         dilemmaInProgress: false,
+        showPadlockCode: false,
         aiRepairProgress: null,
         aiSlowdownActive: false,
         aiSlowdownEndTime: 0,

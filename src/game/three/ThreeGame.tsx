@@ -11,6 +11,7 @@ import { LevelTransition } from './overlays/LevelTransition';
 import { ProtectorTerminal } from './overlays/ProtectorTerminal';
 import { DeepScanIdentityCard } from './overlays/DeepScanIdentityCard';
 import { DilemmaWaitOverlay } from './overlays/DilemmaWaitOverlay';
+import { PadlockCodeOverlay } from './overlays/PadlockCodeOverlay';
 import { NetworkManager } from '../services/NetworkManager';
 import { EventBus } from '../EventBus';
 import { gamemaster } from '../../gamemaster-client';
@@ -102,20 +103,18 @@ function UIOverlays() {
         if (networkData && targetNeuronId === networkData.coreNeuronId) {
             const currentLevel = useGameStore.getState().currentLevel;
 
-            // Trigger dilemma pause and send event to backoffice
-            useGameStore.getState().setDilemmaInProgress(true);
+            // Send event to backoffice
             gamemaster.sendEvent('level_complete', { level: currentLevel });
 
-            // Notify ARIA to show a dilemma (for levels 1 and 2)
-            if (currentLevel < 3) {
-                gamemaster.sendMessage({ type: 'dilemma-showing', data: { isShowing: true } });
-            }
-
             if (currentLevel >= 3) {
-                // Final level complete - victory!
+                // Final level complete - show padlock code modal (no dilemma)
                 useGameStore.getState().addMessage('VICTOIRE ! Tous les niveaux complétés !', 'success');
-                useGameStore.getState().setGameOver(true);
+                useGameStore.getState().setShowPadlockCode(true);
             } else {
+                // Levels 1 and 2: trigger dilemma pause
+                useGameStore.getState().setDilemmaInProgress(true);
+                // Notify ARIA to show a dilemma
+                gamemaster.sendMessage({ type: 'dilemma-showing', data: { isShowing: true } });
                 // Advance to next level
                 useGameStore.getState().addMessage(`Niveau ${currentLevel} terminé ! Passage au niveau ${currentLevel + 1}`, 'success');
                 useGameStore.getState().advanceLevel();
@@ -254,6 +253,9 @@ function UIOverlays() {
 
             {/* Dilemma Wait Overlay */}
             {dilemmaInProgress && <DilemmaWaitOverlay />}
+
+            {/* Padlock Code Overlay */}
+            <PadlockCodeOverlay />
 
             {/* Game Over Overlay */}
             {isGameOver && !dilemmaInProgress && (
@@ -433,6 +435,9 @@ function ProtectorUIOverlays() {
 
             {/* Dilemma Wait Overlay */}
             {dilemmaInProgress && <DilemmaWaitOverlay />}
+
+            {/* Padlock Code Overlay */}
+            <PadlockCodeOverlay />
 
             {/* Game Over Overlay */}
             {isGameOver && !dilemmaInProgress && (
