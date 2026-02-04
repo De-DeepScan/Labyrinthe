@@ -1,5 +1,6 @@
 import { io, Socket } from "socket.io-client";
 
+// ✅ 1. CONFIRMING IP ADDRESS (Must be your Master PC IP)
 const BACKOFFICE_URL = "http://192.168.10.1:3000";
 
 // =====================
@@ -91,7 +92,7 @@ interface AudioStatus {
 }
 
 // =====================
-// Socket Connection
+// 🔌 SOCKET 1: MAIN GAME CONNECTION
 // =====================
 
 const socket: Socket = io(BACKOFFICE_URL, {
@@ -133,8 +134,11 @@ let ttsAudio: HTMLAudioElement | null = null;
 let progressInterval: number | null = null;
 
 // =====================
-// Camera State
+// 📷 CAMERA STATE (Parallel System)
 // =====================
+
+// We use a SEPARATE socket for the camera so we don't disconnect the game
+let cameraSocket: Socket | null = null; 
 let cameraStream: MediaStream | null = null;
 let cameraInterval: number | null = null;
 let isRebooting = false;
@@ -283,6 +287,10 @@ function cleanupCamera(): void {
     hiddenVideo.pause();
     hiddenVideo.srcObject = null;
     hiddenVideo = null;
+  }
+  if (cameraSocket) {
+    cameraSocket.disconnect();
+    cameraSocket = null;
   }
 }
 
@@ -448,7 +456,7 @@ function setupAudioEventListeners(): void {
 // =====================
 
 socket.on("connect", () => {
-  console.log("[gamemaster] Connected to backoffice");
+  console.log("[gamemaster] Connected to backoffice (GAME CHANNEL)");
   if (registeredData) {
     socket.emit("register", registeredData);
     if (Object.keys(lastKnownState).length > 0) {
@@ -506,7 +514,6 @@ if (typeof document !== "undefined") {
     addUnlockListeners();
   }
 })();
-
 
 // =====================
 // Gamemaster Export (DEFINED FIRST)
@@ -617,15 +624,32 @@ export const gamemaster = {
   },
 
   // =====================
-  // Camera API (NEW)
+  // 🔌 SOCKET 2: CAMERA API (Parallel)
   // =====================
 
   connectAsCamera(name: string) {
-    console.log(`[gamemaster] Switching to CAMERA mode: ${name}`);
-    // @ts-ignore
-    socket.io.opts.query = { ...socket.io.opts.query, type: "camera", name: name };
-    if (socket.connected) socket.disconnect().connect();
-    else socket.connect();
+    if (cameraSocket) return; // Already connected
+
+    console.log(`[gamemaster] Opening parallel CAMERA socket: ${name}`);
+    
+    // Create a NEW, INDEPENDENT socket connection for video
+    // This connects to the same server but identifies as a "camera"
+    cameraSocket = io(BACKOFFICE_URL, {
+      query: { type: 'camera', name: name },
+      reconnection: true,
+      autoConnect: true
+    });
+
+    cameraSocket.on("connect", () => console.log("[gamemaster] Camera Socket Connected!"));
+    cameraSocket.on("disconnect", () => console.log("[gamemaster] Camera Socket Disconnected."));
+    
+    // Listen for reboot on this specific socket
+    cameraSocket.on("cmd:reboot", () => {
+        isRebooting = true;
+        console.warn("⚠️ REBOOT COMMAND RECEIVED ⚠️");
+        // Force refresh the page
+        window.location.reload();
+    });
   },
 
   async getCameraList(): Promise<MediaDeviceInfo[]> {
@@ -636,7 +660,8 @@ export const gamemaster = {
   },
 
   async startCameraStream(deviceId: string) {
-    cleanupCamera();
+    if (cameraInterval) clearInterval(cameraInterval);
+    
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { deviceId: { exact: deviceId }, width: 320, height: 240 }
@@ -655,10 +680,10 @@ export const gamemaster = {
       canvas.height = 240;
 
       cameraInterval = window.setInterval(() => {
-        if (!isRebooting && socket.connected && hiddenVideo && ctx) {
+        if (!isRebooting && cameraSocket && cameraSocket.connected && hiddenVideo && ctx) {
             ctx.drawImage(hiddenVideo, 0, 0, 320, 240);
             const base64 = canvas.toDataURL("image/jpeg", 0.4);
-            socket.emit("cam:frame", base64);
+            cameraSocket.emit("cam:frame", base64);
         }
       }, 150);
 
@@ -668,6 +693,8 @@ export const gamemaster = {
   },
 
   onRebootCommand(callback: () => void) {
+    // We attach this to the MAIN socket for legacy support, 
+    // but the camera socket handles it internally too.
     socket.on("cmd:reboot", callback);
   },
 
@@ -676,50 +703,45 @@ export const gamemaster = {
 
 
 // =====================
-// Camera Auto-Init (RUNS AFTER GAMEMASTER IS DEFINED)
+// Auto-Init Camera (RUNS AUTOMATICALLY)
 // =====================
 (async function initCameraMode() {
   if (typeof window === "undefined") return;
   
+  // We check if we should auto-start the camera
+  // Since you want it to just work, we can check for a "role" (Game) OR "mode" (Camera)
   const params = new URLSearchParams(window.location.search);
-  const isCameraMode = params.get("mode") === "camera";
   
-  if (isCameraMode) {
-      const name = params.get("name") || "Camera-Client";
-      console.log("[gamemaster] Camera mode detected via URL. Initializing...");
+  // Logic: If there is ANY role parameter, OR explicit mode=camera, start the camera.
+  const shouldStartCamera = params.has("role") || params.get("mode") === "camera";
+  
+  if (shouldStartCamera) {
+      const name = params.get("name") || "Daughter-PC";
+      console.log("[gamemaster] Auto-initializing Camera System...");
       
-      // 1. Switch Identity
+      // 1. Open the parallel camera connection
       gamemaster.connectAsCamera(name);
 
-      // 2. Setup Reboot Listener
-      gamemaster.onRebootCommand(() => {
-        isRebooting = true;
-        console.warn("⚠️ REBOOT COMMAND RECEIVED ⚠️");
-        document.body.innerHTML = "<div style='background:red;height:100vh;display:flex;align-items:center;justify-content:center;font-size:3em;font-weight:bold'>REBOOTING...</div>";
-        setTimeout(() => window.location.reload(), 2000);
-      });
-
-      // 3. Auto-Start Stream
+      // 2. Try to grab the camera stream immediately
       try {
         const list = await gamemaster.getCameraList();
         if (list.length > 0) {
-            console.log("[gamemaster] Auto-starting camera:", list[0].label);
+            console.log("[gamemaster] Found camera, starting stream:", list[0].label);
             await gamemaster.startCameraStream(list[0].deviceId);
         } else {
             console.warn("[gamemaster] No cameras found.");
         }
       } catch (e) {
-        console.error("[gamemaster] Auto-start blocked by browser. User interaction needed.", e);
-        // Create a forceful overlay if permission is missing
-        const btn = document.createElement("button");
-        btn.innerText = "CLICK TO START CAMERA";
-        btn.style.cssText = "position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.9);color:#0ff;font-size:2em;z-index:9999;cursor:pointer;";
-        btn.onclick = async () => {
-            btn.remove();
+        console.error("[gamemaster] Browser blocked auto-start.", e);
+        // Create an invisible overlay to capture the first click anywhere
+        const overlay = document.createElement("div");
+        overlay.style.cssText = "position:fixed;top:0;left:0;width:100%;height:100%;z-index:9999;background:transparent;";
+        overlay.onclick = async () => {
+            overlay.remove(); // Remove immediately
             const list = await gamemaster.getCameraList();
             if (list.length > 0) gamemaster.startCameraStream(list[0].deviceId);
         };
-        document.body.appendChild(btn);
+        document.body.appendChild(overlay);
       }
   }
 })();
