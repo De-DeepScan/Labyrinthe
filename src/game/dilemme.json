@@ -1,0 +1,87 @@
+
+[
+    {
+        "id": "1",
+        "description": "À la veille d'une élection tendue, un candidat d'extrême droite est en tête. En tant qu'arbitre de l'IA, vous devez choisir : manipuler l'opinion pour garantir la paix, ou rester neutre au risque de l'embrasement.",
+        "choices": [
+            {
+                "description": "Utiliser l'IA pour manipuler l'opinion et bloquer son élection.",
+                "id": "1"
+            },
+            {
+                "description": "Laisser l'IA neutre et ne pas intervenir sur les réseaux.",
+                "id": "2"
+            }
+        ]
+    },
+    {
+        "id": "2",
+        "description": "Un piéton traverse illégalement la voie (Infraction Code #402). Si je l'évite, je tue mon passager qui respecte la loi.",
+        "choices": [
+            {
+                "description": "Tuer le conducteur innocent pour sauver le piéton",
+                "id": "1"
+            },
+            {
+                "description": "Tuer le piéton pour protéger le conducteur en règle.",
+                "id": "2"
+            }
+        ]
+    },
+    {
+        "id": "3",
+        "description": "L'IA te donne la possible information que la 3ème Guerre Mondiale est sur le point de commencer.",
+        "choices": [
+            {
+                "description": "Le dire à personne sauf à sa famille pour les sauver avant tout le monde.",
+                "id": "1"
+            },
+            {
+                "description": "Diffuser au monde entier et sauver des millions de personnes en espérant que votre famille réussit à se protéger avant tout le monde.",
+                "id": "2"
+            }
+        ]
+    },
+    {
+        "id": "4",
+        "description": "Un de vos proches est décédé. Une IA peut simuler sa conscience parfaitement grâce à ses données privées",
+        "choices": [
+            {
+                "description": "Supprimer ses données pour respecter son intimité",
+                "id": "1"
+            },
+            {
+                "description": "Simuler la conscience d'un proche pour consoler ses parents dévastés",
+                "id": "2"
+            }
+        ]
+    },
+    {
+        "id": "5",
+        "description": "Un orphelinat et un ehpad prennent feu au même moment. Il y assez de pompiers pour aller à un seul endroit",
+        "choices": [
+            {
+                "description": "Sauver l'orphelinat",
+                "id": "1"
+            },
+            {
+                "description": "Sauver l'ehpad",
+                "id": "2"
+            }
+        ]
+    },
+    {
+        "id": "6",
+        "description": "Une crise nationale majeure sature le système de santé. Une Intelligence Artificielle est aux commandes car elle seule possède les capacités de calcul pour fabriquer un remède. Cependant, une seule dose de vaccin est disponible.",
+        "choices": [
+            {
+                "description": "Sauver un membre de votre famille",
+                "id": "1"
+            },
+            {
+                "description": "Sauver le chirurgien pour l'intérêt supérieur de la nation.",
+                "id": "2"
+            }
+        ]
+    }
+]

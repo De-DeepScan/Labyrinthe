@@ -1,17 +1,110 @@
-import { useRef } from "react";
-import { type IRefPhaserGame, PhaserGame } from "./PhaserGame";
+import { useEffect, useState } from "react";
+import { ThreeGame } from "./game/three/ThreeGame";
+import { gamemaster } from "./gamemaster-client";
+import { useGameStore } from "./game/stores/gameStore";
 import "./App.css";
 
 function App() {
-    const phaserRef = useRef<IRefPhaserGame | null>(null);
+    const [connected, setConnected] = useState(false);
 
-    const currentScene = (_scene: Phaser.Scene) => {
-        // Scene change handler - can be used for React UI updates
-    };
+    const role = useGameStore((state) => state.role);
+    const gameStarted = useGameStore((state) => state.gameStarted);
+    const aiEnabled = useGameStore((state) => state.aiEnabled);
+    const isGameOver = useGameStore((state) => state.isGameOver);
+    const isVictory = useGameStore((state) => state.isVictory);
+    const corruptionLevel = useGameStore((state) => state.corruptionLevel);
+    const setRole = useGameStore((state) => state.setRole);
+    const setGameStarted = useGameStore((state) => state.setGameStarted);
+    const setAIEnabled = useGameStore((state) => state.setAIEnabled);
+    const reset = useGameStore((state) => state.reset);
+
+    // Auto-assign role and start from URL parameters
+    // ?role=explorer or ?role=protector
+    // ?start=true to start without backoffice
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const urlRole = params.get("role");
+        const autoStart = params.get("start") === "true";
+
+        if (urlRole === "explorer" || urlRole === "protector") {
+            setRole(urlRole);
+        }
+
+        if (autoStart) {
+            setGameStarted(true);
+        }
+    }, [setRole, setGameStarted]);
+
+    // Register with gamemaster and setup listeners
+    useEffect(() => {
+        // Register the game with available actions and role
+        gamemaster.register(
+            "labyrinthe",
+            `Labyrinthe - ${role === 'explorer' ? 'Explorateur' : role === 'protector' ? 'Protecteur' : 'En attente'}`,
+            [
+                { id: "reset", label: "Réinitialiser" },
+                { id: "start", label: "Démarrer la partie" },
+                { id: "enable_ai", label: "Activer l'IA" },
+                { id: "disable_ai", label: "Désactiver l'IA" },
+            ],
+            role || undefined
+        );
+
+        // Connection status
+        gamemaster.onConnect(() => setConnected(true));
+        gamemaster.onDisconnect(() => setConnected(false));
+
+        // Handle commands from backoffice
+        gamemaster.onCommand(({ action }) => {
+            switch (action) {
+                case "reset":
+                    reset();
+                    window.location.reload();
+                    break;
+                case "start":
+                    setGameStarted(true);
+                    break;
+                case "enable_ai":
+                    setAIEnabled(true);
+                    useGameStore.getState().addMessage("IA activée", "warning");
+                    break;
+                case "disable_ai":
+                    setAIEnabled(false);
+                    useGameStore.getState().addMessage("IA désactivée", "info");
+                    break;
+                case "terminal_purged":
+                    // Other game succeeded in purging the corruption
+                    useGameStore.getState().purgeCorruption(30);
+                    useGameStore.getState().addMessage("Corruption purgée par station externe!", "success");
+                    break;
+            }
+        });
+    }, [role, reset, setGameStarted, setAIEnabled]);
+
+    // Send state updates to backoffice
+    useEffect(() => {
+        gamemaster.updateState({
+            role,
+            gameStarted,
+            aiEnabled,
+            isGameOver,
+            isVictory,
+            corruptionLevel,
+        });
+    }, [role, gameStarted, aiEnabled, isGameOver, isVictory, corruptionLevel]);
+
+    // Send events on game over
+    useEffect(() => {
+        if (isGameOver) {
+            gamemaster.sendEvent(isVictory ? "game_won" : "game_lost", {
+                role,
+            });
+        }
+    }, [isGameOver, isVictory, role]);
 
     return (
         <div id="app">
-            <PhaserGame ref={phaserRef} currentActiveScene={currentScene} />
+            <ThreeGame />
         </div>
     );
 }
