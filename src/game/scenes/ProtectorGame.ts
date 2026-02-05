@@ -170,6 +170,7 @@ export default class ProtectorGame extends Scene {
     private cameraStartX: number = 0;
     private cameraStartY: number = 0;
     private isTerminalOpen: boolean = false;
+    private isDilemmaActive: boolean = false;
 
     /**
      * Initialize the game after receiving network data
@@ -511,6 +512,11 @@ export default class ProtectorGame extends Scene {
             bgGraphics.strokePath();
         });
         hitArea.on("pointerdown", () => {
+            // Block terminal during dilemma
+            if (this.isDilemmaActive) {
+                this.showMessage("Faites votre choix");
+                return;
+            }
             this.aiManager?.pause();
             this.terminalManager.startGame();
         });
@@ -526,7 +532,10 @@ export default class ProtectorGame extends Scene {
         });
         EventBus.on("terminal-closed", () => {
             this.isTerminalOpen = false;
-            this.aiManager?.resume();
+            // Only resume AI if no dilemma is currently active
+            if (!this.isDilemmaActive) {
+                this.aiManager?.resume();
+            }
         });
     }
 
@@ -543,6 +552,12 @@ export default class ProtectorGame extends Scene {
      * Try to destroy a neuron
      */
     private tryDestroyNeuron(neuronId: string): void {
+        // Block actions during dilemma
+        if (this.isDilemmaActive) {
+            this.showMessage("Faites votre choix");
+            return;
+        }
+
         if (!this.networkData || !this.networkManager) return;
 
         const neuron = this.networkData.neurons[neuronId];
@@ -712,6 +727,13 @@ export default class ProtectorGame extends Scene {
             this.terminalManager.hideUI();
         }
 
+        // Mark dilemma as active
+        this.isDilemmaActive = true;
+
+        // Explicitly pause the AI (important: do this AFTER closing terminal
+        // to override any resume from terminal-closed event)
+        this.aiManager?.pause();
+
         // Send dilemma to all screens via network (DilemmaScreen and ExplorerGame)
         this.networkService.sendDilemmaTriggered({
             title: `Dilemme éthique`,
@@ -727,6 +749,9 @@ export default class ProtectorGame extends Scene {
      * Handle when a dilemma choice is made
      */
     private onDilemmaChoiceMade(): void {
+        // Mark dilemma as no longer active
+        this.isDilemmaActive = false;
+
         // Hide the dilemma display
         this.dilemmaManager.hideDilemma();
 
