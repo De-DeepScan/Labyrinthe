@@ -57,6 +57,7 @@ function App() {
                 { id: "reset", label: "Réinitialiser" },
                 { id: "start", label: "Démarrer la partie" },
                 { id: "set_ai", label: "Activer/Désactiver l'IA", params: ["enabled"] },
+                { id: "show_identity_card", label: "Afficher carte DeepScan" },
             ],
             role || undefined
         );
@@ -96,6 +97,9 @@ function App() {
                 case "dilemma_end":
                     // Backoffice ends the dilemma - resume the game
                     useGameStore.getState().setDilemmaInProgress(false);
+                    break;
+                case "show_identity_card":
+                    useGameStore.getState().setGameOver(true);
                     break;
                 case "sidequest_score": {
                     // Sidequest points reduce corruption

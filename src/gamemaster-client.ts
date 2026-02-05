@@ -2,6 +2,7 @@ import { io, Socket } from "socket.io-client";
 import { GamemasterAudio } from "./gamemaster-audio";
 import { GamemasterWebcam } from "./gamemaster-webcam";
 
+// Labyrinthe
 const BACKOFFICE_URL = "http://192.168.10.1:3000"; // ESD MAC
 // const BACKOFFICE_URL = "http://192.168.1.46:3000"; // THOMAS HOME
 // export const BACKOFFICE_URL = "http://10.14.73.40:3000"; // THOMAS ESD
