@@ -394,6 +394,8 @@ function ProtectorUIOverlays() {
         const handleLevelTransition = (_data: { nextLevel: number }) => {
             // Trigger level transition on Protector side
             triggerLevelTransition();
+            // Also show the dilemma overlay (same as explorer)
+            useGameStore.getState().setDilemmaInProgress(true);
         };
 
         EventBus.on('network-data-received', handleNetworkData);

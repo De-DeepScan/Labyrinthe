@@ -55,7 +55,7 @@ export default class ProtectorGame extends Scene {
             this.showMessage("IA ralentie !");
         });
 
-        // Create dilemma manager (read-only mode - choice is made on DilemmaScreen)
+        // Create dilemma manager (read-only mode - same as explorer)
         this.dilemmaManager = new DilemmaManager(this, true);
 
         // Create waiting UI
