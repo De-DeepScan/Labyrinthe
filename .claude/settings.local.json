@@ -12,7 +12,9 @@
       "Bash(npm install:*)",
       "Bash(npm run dev:*)",
       "Bash(timeout:*)",
-      "Bash(wc:*)"
+      "Bash(wc:*)",
+      "Bash(npx vite build)",
+      "Bash(npx vite build:*)"
     ]
   }
 }
