@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
 import { ThreeGame } from "./game/three/ThreeGame";
 import { DeepScanIdentityCard } from "./game/three/overlays/DeepScanIdentityCard";
+import ScreenBoot from "./game/three/components/ScreenBoot";
 import { gamemaster } from "./gamemaster-client";
 import { useGameStore } from "./game/stores/gameStore";
 import "./App.css";
 
 function App() {
     const [connected, setConnected] = useState(false);
+    const [booting, setBooting] = useState(false);
 
     const role = useGameStore((state) => state.role);
     const gameStarted = useGameStore((state) => state.gameStarted);
@@ -128,6 +130,13 @@ function App() {
         });
     }, [role, reset, setGameStarted, setAIEnabled]);
 
+    // Trigger boot animation when game starts
+    useEffect(() => {
+        if (gameStarted) {
+            setBooting(true);
+        }
+    }, [gameStarted]);
+
     // Send state updates to backoffice
     useEffect(() => {
         gamemaster.updateState({
@@ -161,6 +170,7 @@ function App() {
 
     return (
         <div id="app">
+            {booting && <ScreenBoot onComplete={() => setBooting(false)} />}
             <ThreeGame />
         </div>
     );
