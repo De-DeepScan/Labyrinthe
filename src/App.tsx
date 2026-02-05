@@ -49,17 +49,20 @@ function App() {
 
     // Register with gamemaster and setup listeners
     useEffect(() => {
+        // Only register if a role is selected - prevents ghost "labyrinthe" entries
+        if (!role) return;
+
         // Register the game with available actions and role
         gamemaster.register(
             "labyrinthe",
-            `Labyrinthe - ${role === 'explorer' ? 'Explorateur' : role === 'protector' ? 'Protecteur' : 'En attente'}`,
+            `Labyrinthe - ${role === 'explorer' ? 'Explorateur' : 'Protecteur'}`,
             [
                 { id: "reset", label: "Réinitialiser" },
                 { id: "start", label: "Démarrer la partie" },
                 { id: "set_ai", label: "Activer/Désactiver l'IA", params: ["enabled"] },
                 { id: "show_identity_card", label: "Afficher carte DeepScan" },
             ],
-            role || undefined
+            role
         );
 
         // Connection status
