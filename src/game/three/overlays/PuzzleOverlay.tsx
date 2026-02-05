@@ -53,8 +53,6 @@ export function PuzzleOverlay({ synapseId, targetNeuronId, difficulty, onComplet
     const [invalidCell, setInvalidCell] = useState<{ row: number; col: number } | null>(null);
     const [hint, setHint] = useState('');
     const [isCompleted, setIsCompleted] = useState(false);
-    // Show warning only for the first puzzle of level 2 (synapse s_0)
-    const [showLevelWarning, setShowLevelWarning] = useState(difficulty === 2 && synapseId === 's_0');
 
     // Generate puzzle based on difficulty/level
     useEffect(() => {
@@ -65,18 +63,10 @@ export function PuzzleOverlay({ synapseId, targetNeuronId, difficulty, onComplet
 
     // Update hint message based on puzzle state
     const updateHint = useCallback((puz: GridPuzzleState, path: { row: number; col: number }[]) => {
-        if (puz.level === 1) {
-            const checkpointsReached = puz.checkpoints.filter(cp =>
-                path.some(p => p.row === cp.row && p.col === cp.col)
-            ).length;
-            setHint(`Reliez les ${puz.maxCheckpoint} points dans l'ordre (${checkpointsReached}/${puz.maxCheckpoint})`);
-        } else {
-            const totalCells = puz.gridSize * puz.gridSize;
-            const checkpointsReached = puz.checkpoints.filter(cp =>
-                path.some(p => p.row === cp.row && p.col === cp.col)
-            ).length;
-            setHint(`Remplissez toutes les cases (${path.length}/${totalCells}) - Checkpoints: ${checkpointsReached}/${puz.maxCheckpoint}`);
-        }
+        const checkpointsReached = puz.checkpoints.filter(cp =>
+            path.some(p => p.row === cp.row && p.col === cp.col)
+        ).length;
+        setHint(`Reliez les ${puz.maxCheckpoint} points dans l'ordre (${checkpointsReached}/${puz.maxCheckpoint})`);
     }, []);
 
     // Check if cell is in path
@@ -156,24 +146,11 @@ export function PuzzleOverlay({ synapseId, targetNeuronId, difficulty, onComplet
 
         if (!allCheckpointsReached) return;
 
-        if (puz.level === 1) {
-            // Level 1: Just need to connect all 4 checkpoints
-            const lastCell = path[path.length - 1];
-            const lastCheckpoint = puz.checkpoints[puz.checkpoints.length - 1];
-            if (lastCell.row === lastCheckpoint.row && lastCell.col === lastCheckpoint.col) {
-                completeSuccess();
-            }
-        } else {
-            // Level 2 & 3: Must fill ALL cells AND end on last checkpoint
-            const totalCells = puz.gridSize * puz.gridSize;
-            const lastCell = path[path.length - 1];
-            const lastCheckpoint = puz.checkpoints[puz.checkpoints.length - 1];
-
-            if (path.length === totalCells &&
-                lastCell.row === lastCheckpoint.row &&
-                lastCell.col === lastCheckpoint.col) {
-                completeSuccess();
-            }
+        // All levels: Just need to connect all checkpoints and end on the last one
+        const lastCell = path[path.length - 1];
+        const lastCheckpoint = puz.checkpoints[puz.checkpoints.length - 1];
+        if (lastCell.row === lastCheckpoint.row && lastCell.col === lastCheckpoint.col) {
+            completeSuccess();
         }
     }, []);
 
@@ -374,145 +351,6 @@ export function PuzzleOverlay({ synapseId, targetNeuronId, difficulty, onComplet
     }, [puzzle, currentPath]);
 
     if (!puzzle) return null;
-
-    // Show warning screen for level 2 first puzzle
-    if (showLevelWarning) {
-        return (
-            <div
-                style={{
-                    position: 'fixed',
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    background: 'rgba(0, 10, 20, 0.98)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    zIndex: 1000,
-                    fontFamily: '"Courier New", monospace',
-                }}
-            >
-                {/* CRT scanline effect */}
-                <div
-                    style={{
-                        position: 'fixed',
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        pointerEvents: 'none',
-                        background: 'repeating-linear-gradient(0deg, rgba(0,0,0,0.1) 0px, rgba(0,0,0,0.1) 1px, transparent 1px, transparent 2px)',
-                        zIndex: 1001,
-                    }}
-                />
-
-                <div
-                    style={{
-                        background: 'rgba(0, 10, 20, 0.95)',
-                        border: '2px solid #ff9933',
-                        padding: '40px 50px',
-                        maxWidth: 450,
-                        textAlign: 'center',
-                        boxShadow: '0 0 40px rgba(255, 153, 51, 0.3), inset 0 0 30px rgba(255, 153, 51, 0.05)',
-                        position: 'relative',
-                    }}
-                >
-                    {/* Header bar */}
-                    <div style={{
-                        position: 'absolute',
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        height: 3,
-                        background: 'linear-gradient(90deg, transparent, #ff9933, transparent)',
-                    }} />
-
-                    {/* Warning icon */}
-                    <div style={{
-                        fontSize: 14,
-                        marginBottom: 15,
-                        color: '#ff9933',
-                        letterSpacing: 3,
-                    }}>
-                        ▲ ALERTE SYSTÈME ▲
-                    </div>
-
-                    {/* Title */}
-                    <div style={{
-                        margin: '0 0 20px 0',
-                        color: '#ff9933',
-                        fontSize: 22,
-                        textTransform: 'uppercase',
-                        letterSpacing: 4,
-                        textShadow: '0 0 15px rgba(255, 153, 51, 0.5)',
-                    }}>
-                        FIREWALL RENFORCÉ
-                    </div>
-
-                    {/* Warning text */}
-                    <div style={{
-                        margin: '0 0 15px 0',
-                        color: '#00d4aa',
-                        fontSize: 16,
-                        lineHeight: 1.8,
-                    }}>
-                        Nouveau protocole de sécurité détecté.
-                        <br />
-                        <span style={{ color: '#ff9933', fontWeight: 'bold' }}>Remplir TOUTES les cases</span> requis.
-                    </div>
-
-                    <div style={{
-                        margin: '0 0 30px 0',
-                        color: '#666',
-                        fontSize: 12,
-                        lineHeight: 1.6,
-                        padding: '10px',
-                        background: 'rgba(255, 153, 51, 0.1)',
-                        border: '1px solid rgba(255, 153, 51, 0.2)',
-                    }}>
-                        Tracez un chemin passant par tous les checkpoints dans l'ordre ET remplissant chaque case.
-                    </div>
-
-                    {/* Continue button */}
-                    <button
-                        onClick={() => setShowLevelWarning(false)}
-                        style={{
-                            padding: '12px 40px',
-                            fontSize: 14,
-                            color: '#ff9933',
-                            background: 'transparent',
-                            border: '2px solid #ff9933',
-                            cursor: 'pointer',
-                            textTransform: 'uppercase',
-                            letterSpacing: 2,
-                            transition: 'all 0.2s',
-                        }}
-                        onMouseOver={(e) => {
-                            e.currentTarget.style.background = 'rgba(255, 153, 51, 0.2)';
-                            e.currentTarget.style.boxShadow = '0 0 20px rgba(255, 153, 51, 0.4)';
-                        }}
-                        onMouseOut={(e) => {
-                            e.currentTarget.style.background = 'transparent';
-                            e.currentTarget.style.boxShadow = 'none';
-                        }}
-                    >
-                        [ CONFIRMER ]
-                    </button>
-
-                    {/* Footer bar */}
-                    <div style={{
-                        position: 'absolute',
-                        bottom: 0,
-                        left: 0,
-                        right: 0,
-                        height: 3,
-                        background: 'linear-gradient(90deg, transparent, #ff9933, transparent)',
-                    }} />
-                </div>
-            </div>
-        );
-    }
 
     const levelNames = ['', 'FIREWALL LV.1', 'FIREWALL LV.2', 'FIREWALL LV.3'];
 
@@ -796,13 +634,12 @@ function generateGridPuzzle(synapseId: string, targetNeuronId: string, difficult
     const level = difficulty;
 
     // Level config
-    // Level 1: 5x5, 4 checkpoints, don't need to fill all
-    // Level 1: 4x4, 4 checkpoints, connect only
-    // Level 2: 4x4, 4 checkpoints, must fill all
-    // Level 3: 5x5, 6 checkpoints, must fill all
+    // Level 1: 4x4, 4 checkpoints, connect checkpoints only
+    // Level 2: 4x4, 4 checkpoints, connect checkpoints only
+    // Level 3: 5x5, 6 checkpoints, connect checkpoints only (bigger grid)
     const gridSize = level === 3 ? 5 : 4;
     const maxCheckpoint = level === 3 ? 6 : 4;
-    const mustFillAll = level >= 2;
+    const mustFillAll = false; // Never require filling all cells
 
     // Initialize empty grid
     const grid: GridCell[][] = [];

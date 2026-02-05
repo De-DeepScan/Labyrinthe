@@ -74,6 +74,12 @@ export class GamemasterAudio {
 
   private visibilityHandler: (() => void) | null = null;
 
+  // Ducking state: saved volumes before ducking
+  private isDucked = false;
+  private savedAmbientVolumes = new Map<string, number>();
+  private savedPresetVolumes = new Map<number, number>();
+  private savedTtsVolume = 0;
+
   constructor(socket: Socket, backofficeUrl: string) {
     this.socket = socket;
     this.baseUrl = backofficeUrl;
@@ -117,6 +123,7 @@ export class GamemasterAudio {
 
   register(): void {
     if (this.config.enabled) {
+      console.log("[gamemaster:audio:labyrinthe] Registering as audio player");
       this.socket.emit("register-audio-player", {});
     }
   }
@@ -162,6 +169,8 @@ export class GamemasterAudio {
     this.socket.off("audio:master-volume");
     this.socket.off("audio:volume-ia");
     this.socket.off("audio:stop-all");
+    this.socket.off("audio:duck-ambient");
+    this.socket.off("audio:unduck-ambient");
   }
 
   // =====================
@@ -210,6 +219,7 @@ export class GamemasterAudio {
 
   private setupListeners(): void {
     const s = this.socket;
+    console.log("[gamemaster:audio:labyrinthe] Setting up listeners");
 
     // --- Ambient ---
 
@@ -382,6 +392,69 @@ export class GamemasterAudio {
     s.on("audio:stop-all", () => {
       this.log("Stop all audio");
       this.stopAll();
+    });
+
+    // --- Ducking (lower ambient when TTS plays) ---
+
+    s.on("audio:duck-ambient", (data: { factor: number }) => {
+      console.log("[gamemaster:audio:labyrinthe] DUCK EVENT RECEIVED", data);
+      if (this.isDucked) {
+        console.log("[gamemaster:audio:labyrinthe] Already ducked, ignoring");
+        return;
+      }
+      this.isDucked = true;
+      const factor = data.factor ?? 0.8;
+      this.log("Duck all audio by factor:", factor);
+      console.log("[gamemaster:audio:labyrinthe] Presets count:", this.presetAudios.size);
+      console.log("[gamemaster:audio:labyrinthe] Ambients count:", this.ambientAudios.size);
+
+      // Save and reduce ambient volumes
+      for (const [soundId, audio] of this.ambientAudios) {
+        this.savedAmbientVolumes.set(soundId, audio.volume);
+        audio.volume = Math.min(1, audio.volume * factor);
+      }
+
+      // Save and reduce preset volumes (ARIA voice)
+      for (const [presetIdx, audio] of this.presetAudios) {
+        this.savedPresetVolumes.set(presetIdx, audio.volume);
+        audio.volume = Math.min(1, audio.volume * factor);
+      }
+
+      // Save and reduce TTS volume (ARIA TTS)
+      if (this.ttsAudio) {
+        this.savedTtsVolume = this.ttsAudio.volume;
+        this.ttsAudio.volume = Math.min(1, this.ttsAudio.volume * factor);
+      }
+    });
+
+    s.on("audio:unduck-ambient", () => {
+      if (!this.isDucked) return; // Not ducked
+      this.isDucked = false;
+      this.log("Unduck all audio - restoring volumes");
+
+      // Restore ambient volumes
+      for (const [soundId, savedVolume] of this.savedAmbientVolumes) {
+        const audio = this.ambientAudios.get(soundId);
+        if (audio) {
+          audio.volume = savedVolume;
+        }
+      }
+      this.savedAmbientVolumes.clear();
+
+      // Restore preset volumes
+      for (const [presetIdx, savedVolume] of this.savedPresetVolumes) {
+        const audio = this.presetAudios.get(presetIdx);
+        if (audio) {
+          audio.volume = savedVolume;
+        }
+      }
+      this.savedPresetVolumes.clear();
+
+      // Restore TTS volume
+      if (this.ttsAudio && this.savedTtsVolume > 0) {
+        this.ttsAudio.volume = this.savedTtsVolume;
+      }
+      this.savedTtsVolume = 0;
     });
   }
 }

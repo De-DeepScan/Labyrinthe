@@ -107,9 +107,9 @@ function App() {
                     useGameStore.getState().setGameOver(true);
                     break;
                 case "sidequest_score": {
-                    // Sidequest points reduce corruption
+                    // Sidequest points reduce corruption (20% per point)
                     const points = (payload?.points as number) || 0;
-                    const reduction = points * 5;
+                    const reduction = points * 20;
                     useGameStore.getState().purgeCorruption(reduction);
                     useGameStore.getState().addMessage(
                         `Sidequest: +${points} pts - Corruption -${reduction}%`,
